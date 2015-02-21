@@ -15,3 +15,8 @@ http://askubuntu.com/questions/585275/make-capslock-j-work-like-pos1
 
 # Mouseless Clipboard Manager
 http://askubuntu.com/q/513395/42348
+
+# Copy+Paste with same shortcuts everywhere
+I want the same shortcut for copy+paste in all applications. I choose to take the common ctrl-c ctrl-v for this. Works every where except the x/gnome terminal.
+
+This is easy to solve. Just use Edit -> Keyboard of the gnome terminal: http://askubuntu.com/questions/53688/making-ctrlc-copy-text-in-gnome-terminal
