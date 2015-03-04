@@ -13,6 +13,10 @@ https://code.google.com/p/autokey/  https://github.com/autokey/autokey
 
 http://askubuntu.com/questions/585275/make-capslock-j-work-like-pos1
 
+Question in colemark forum:
+http://forum.colemak.com/viewtopic.php?pid=15700#p15700
+
+
 # Mouseless Clipboard Manager
 http://askubuntu.com/q/513395/42348
 
