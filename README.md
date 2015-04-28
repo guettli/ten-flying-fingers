@@ -7,10 +7,8 @@ These keys are hard to access if you want to keep the poiting fingers on "F" and
 
 - Pos1
 - End
-- CursorUp
-- CursorDown
-- PageUp
-- PageDown
+- CursorUp, CursorDown, CursorLeft, CursorRight
+- PageUp, PageDown
 - Backspace
 - Del
 
