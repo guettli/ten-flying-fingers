@@ -1,15 +1,32 @@
 # ten-flying-fingers
 My goal is to keep the pointing fingers on "F" and "J" as much as possible
 
+# Keys wich are hard to access
+
+These keys are hard to access if you want to keep the poiting fingers on "F" and "J"
+
+- Pos1
+- End
+- CursorUp
+- CursorDown
+- PageUp
+- PageDown
+- Backspace
+- Del
+
+# Technologies for the implementation
+
 https://help.ubuntu.com/community/ibus
 
 http://en.wikipedia.org/wiki/Intelligent_Input_Bus
 
+https://code.google.com/p/autokey/  https://github.com/autokey/autokey
+
+# Related Questions on Stackoverflow, Mailinglists, Groups
+
 http://stackoverflow.com/questions/27813748/clone-input-device-with-python-uniput
 
 http://stackoverflow.com/questions/27581500/hook-into-linux-key-event-handling
-
-https://code.google.com/p/autokey/  https://github.com/autokey/autokey
 
 http://askubuntu.com/questions/585275/make-capslock-j-work-like-pos1
 
