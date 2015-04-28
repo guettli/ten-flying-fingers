@@ -5,12 +5,16 @@ My goal is to keep the pointing fingers on "F" and "J" as much as possible
 
 These keys are hard to access if you want to keep the poiting fingers on "F" and "J"
 
-- Pos1
-- End
+- Pos1, End
 - CursorUp, CursorDown, CursorLeft, CursorRight
 - PageUp, PageDown
 - Backspace
 - Del
+
+# History
+I used Emacs for more then 15 years. Mostly for programming Python. In 2015 I switched from Emacs to PyCharm. In Emacs it is easy to go to the beginning/end of a line. During configuring PyCharm I asked myself: Why not configure this once? Why configure every single application?
+
+Other example: In thunderbird many users configure a shortcut to delete mails. The del-key works, but users configure a short cut. Why? Because "del" is hard to access....
 
 # Technologies for the implementation
 
