@@ -16,6 +16,12 @@ I used Emacs for more then 15 years. Mostly for programming Python. In 2015 I sw
 
 Other example: In thunderbird many users configure a shortcut to delete mails. The del-key works, but users configure a short cut. Why? Because "del" is hard to access....
 
+# I love feedback
+
+You found a typo, you have the same need as I, you know how to solve this?
+
+Please send me advices via the github issue manager!
+
 # Technologies for the implementation
 
 https://help.ubuntu.com/community/ibus
