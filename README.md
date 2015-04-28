@@ -18,7 +18,7 @@ Other example: In thunderbird many users configure a shortcut to delete mails. T
 
 # I am happy with most other keys on the keyboard
 
-I know that there are alternative keyboard layouts like neo2 or colemark. I am happy with the default QWERTY or QWERTZ layout. I don't want to change the default keyboard layout. I want to improve QWERTY, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members without like I am used to.
+I know that there are alternative keyboard layouts like neo2 or colemark. I am happy with the default QWERTY or QWERTZ layout. I want to improve QWERTY, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members like I am used to.
 
 Related: http://forum.colemak.com/viewtopic.php?id=1914
 
