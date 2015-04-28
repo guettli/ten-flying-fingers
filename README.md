@@ -30,6 +30,10 @@ http://en.wikipedia.org/wiki/Intelligent_Input_Bus
 
 https://code.google.com/p/autokey/  https://github.com/autokey/autokey
 
+# Why not xmodmap ...
+
+The basics could be solved by using xmodmap. But later I would love to have a command line interface which does much more then just mapping one keyboard key to an other key.
+
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
 http://stackoverflow.com/questions/27813748/clone-input-device-with-python-uniput
