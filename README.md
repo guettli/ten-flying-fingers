@@ -1,7 +1,7 @@
 # ten-flying-fingers
 My goal is to keep the pointing fingers on "F" and "J" as much as possible
 
-# Keys wich are hard to access
+# Keys which are hard to access
 
 These keys are hard to access if you want to keep the poiting fingers on "F" and "J"
 
