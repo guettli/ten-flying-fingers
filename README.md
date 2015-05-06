@@ -42,6 +42,16 @@ https://code.google.com/p/autokey/  https://github.com/autokey/autokey
 
 The basics could be solved by using xmodmap. But later I would love to have a command line interface which does much more then just mapping one keyboard key to an other key.
 
+# Command line
+
+Pressing CapsLock twice should open a command line like tool. With this I want to:
+
+  - move windows: for example put all terminals on the current screen beneath each other (no overlapping)
+  - change window focus: For example bring webbroser, mail client or editor on the top of the screen.
+  - insert fixed text: like "Regards, Firstname Lastname" or my ssh public key.
+  - autocomplete search in the history of the copy and paste texts.
+
+
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
 http://stackoverflow.com/questions/27813748/clone-input-device-with-python-uniput
