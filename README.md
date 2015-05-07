@@ -1,5 +1,6 @@
 # ten-flying-fingers
 My goal is to keep the pointing fingers on "F" and "J" as much as possible. Up to now I am gathering ideas and ways how to implement them. No coding was done yet, and no coding will be done during the next weeks.
+My target plattform is a common linux desktop.
 
 # Keys which are hard to access
 
@@ -53,7 +54,11 @@ Pressing CapsLock twice should open a command line like tool. With this I want t
 
 # Autocomplete for long words or common phrases
 
-This is very common on mobile phones. But traditional PCs don't have this great feature. Some applications like LibreOffice or programming IDEs have it, but it is build into each single application. I dream of an autocomplete for long words which works above the applications.
+This is very common on mobile phones. But traditional PCs don't have this great feature. Some applications like LibreOffice or programming IDEs have it, but it is build into each single application. I dream of an autocomplete for long words which works for all applications on a linux desktop.
+
+# Windowmanaging
+
+I want to move, align, change focus .... of windows. I don't want to invent a new window manager. AFAIK it should be possible to control the layout of the windows with each window manager. My solution should work for unity desktops and others (mate, gnome, kde, ...). I guess, but don't know, that there is an API for this which works for all of them.
 
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
@@ -66,11 +71,3 @@ http://askubuntu.com/questions/585275/make-capslock-j-work-like-pos1
 Question in colemark forum:
 http://forum.colemak.com/viewtopic.php?pid=15700#p15700
 
-
-# Mouseless Clipboard Manager
-http://askubuntu.com/q/513395/42348
-
-# Copy+Paste with same shortcuts everywhere
-I want the same shortcut for copy+paste in all applications. I choose to take the common ctrl-c ctrl-v for this. Works every where except the x/gnome terminal.
-
-This is easy to solve. Just use Edit -> Keyboard of the gnome terminal: http://askubuntu.com/questions/53688/making-ctrlc-copy-text-in-gnome-terminal
