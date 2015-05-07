@@ -1,5 +1,5 @@
 # ten-flying-fingers
-My goal is to keep the pointing fingers on "F" and "J" as much as possible
+My goal is to keep the pointing fingers on "F" and "J" as much as possible. Up to now I am gathering ideas and ways how to implement them. No coding was done yet, and no coding will be done during the next weeks.
 
 # Keys which are hard to access
 
