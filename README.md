@@ -51,6 +51,9 @@ Pressing CapsLock twice should open a command line like tool. With this I want t
   - insert fixed text: like "Regards, Firstname Lastname" or my ssh public key.
   - autocomplete search in the history of the copy and paste texts.
 
+# Autocomplete for long words or common phrases
+
+This is very common on mobile phones. But traditional PCs don't have this great feature. Some applications like LibreOffice or programming IDEs have it, but it is build into each single application. I dream of an autocomplete for long words which works above the applications.
 
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
