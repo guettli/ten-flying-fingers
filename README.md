@@ -72,6 +72,8 @@ http://askubuntu.com/questions/585275/make-capslock-j-work-like-pos1
 
 http://askubuntu.com/questions/401595/autocomplete-at-desktop-level
 
+http://askubuntu.com/questions/627432/how-to-install-ibus-typing-booster
+
 Question in colemark forum:
 http://forum.colemak.com/viewtopic.php?pid=15700#p15700
 
