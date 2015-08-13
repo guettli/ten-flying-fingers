@@ -62,6 +62,9 @@ This is very common on mobile phones. But traditional PCs don't have this great 
 
 I want to move, align, change focus .... of windows. I don't want to invent a new window manager. AFAIK it should be possible to control the layout of the windows with each window manager. My solution should work for unity desktops and others (mate, gnome, kde, ...). I guess, but don't know, that there is an API for this which works for all of them.
 
+## Switching between windows by typing
+  - Easy with Unity (Ubuntu): Super+w http://askubuntu.com/questions/660643/switch-between-applications-by-using-the-keyboard/660753
+  
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
 http://stackoverflow.com/questions/27813748/clone-input-device-with-python-uniput
