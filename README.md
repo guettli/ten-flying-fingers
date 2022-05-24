@@ -70,8 +70,6 @@ http://stackoverflow.com/questions/27813748/clone-input-device-with-python-unipu
 
 http://stackoverflow.com/questions/27581500/hook-into-linux-key-event-handling
 
-http://askubuntu.com/questions/585275/make-capslock-j-work-like-pos1
-
 http://askubuntu.com/questions/401595/autocomplete-at-desktop-level
 
 http://askubuntu.com/questions/627432/how-to-install-ibus-typing-booster
