@@ -20,9 +20,8 @@ Other example: In thunderbird many users configure a shortcut to delete mails. T
 
 # I am happy with most other keys on the keyboard
 
-I know that there are alternative keyboard layouts like neo2 or colemark. I am happy with the default QWERTY or QWERTZ layout. I want to improve the default layout, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members like I am used to.
-
-Related: http://forum.colemak.com/viewtopic.php?id=1914
+I know that there are alternative keyboard layouts like neo2 or colemark. But I am happy with the default QWERTY or QWERTZ layout. 
+I want to improve the default layout, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members like I am used to.
 
 
 # I love feedback
@@ -31,21 +30,7 @@ You found a typo, you have the same need as I, you know how to solve this?
 
 Please send me advices via the github issue manager!
 
-# Technologies for the implementation
-
-https://help.ubuntu.com/community/ibus
-
-http://en.wikipedia.org/wiki/Intelligent_Input_Bus
-
-https://code.google.com/p/autokey/  https://github.com/autokey/autokey
-
-https://git.fedorahosted.org/cgit/ibus-typing-booster.git/ 
-
-# Why not xmodmap ...
-
-The basics could be solved by using xmodmap. But later I would love to have a command line interface which does much more then just mapping one keyboard key to an other key.
-
-# Command line
+# Maybe later: Command line
 
 Pressing CapsLock twice should open a command line like tool. With this I want to:
 
@@ -58,12 +43,6 @@ Pressing CapsLock twice should open a command line like tool. With this I want t
 
 This is very common on mobile phones. But traditional PCs don't have this great feature. Some applications like LibreOffice or programming IDEs have it, but it is build into each single application. I dream of an autocomplete for long words which works for all applications on a linux desktop.
 
-# Windowmanaging
-
-I want to move, align, change focus .... of windows. I don't want to invent a new window manager. AFAIK it should be possible to control the layout of the windows with each window manager. My solution should work for unity desktops and others (mate, gnome, kde, ...). I guess, but don't know, that there is an API for this which works for all of them.
-
-## Switching between windows by typing
-  - Easy with Unity (Ubuntu): Super+w http://askubuntu.com/questions/660643/switch-between-applications-by-using-the-keyboard/660753
   
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
@@ -77,6 +56,6 @@ http://askubuntu.com/questions/401595/autocomplete-at-desktop-level
 
 http://askubuntu.com/questions/627432/how-to-install-ibus-typing-booster
 
-Question in colemark forum:
-http://forum.colemak.com/viewtopic.php?pid=15700#p15700
+https://askubuntu.com/questions/1382762/hyper-key-u-like-arrow-up
+
 
