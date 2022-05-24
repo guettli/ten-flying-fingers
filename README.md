@@ -30,12 +30,15 @@ I used Emacs for more than 15 years. Mostly for programming Python. In 2015 I sw
 
 The first-time-user experience of the GUI could be better, but overall it is easy to remap keys.
 
+First I disabled CapsLock via `gnome-tweaks`. Then I use input-remapper-gtk to add short-cuts.
+
 I use CapsLock as modifier. Examples:
 
 * CapsLock h: Pos1
 * CapsLock ö: End
 * CapsLock j: Backspace
 * ...
+
 
 Before I found this tool I wasted several hours, trying to remap keys via xmodmap or other tools. I am happy that I found input-remapper.
 
