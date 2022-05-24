@@ -1,6 +1,12 @@
-# ten-flying-fingers
-My goal is to keep the pointing fingers on "F" and "J" as much as possible. Up to now I am gathering ideas and ways how to implement them. No coding was done yet, and no coding will be done during the next weeks.
-My target plattform is a common linux desktop.
+# Ten Flying Fingers
+
+I learned [touch typing](https://en.wikipedia.org/wiki/Touch_typing) several years ago. And I can write blind almost everything. 
+
+But some key are easy to reach. For example these keys: Pos1, End or Del
+
+I want to keep the pointing fingers on "F" and "J" as much as possible. 
+
+My target plattform is a Linux.
 
 # Keys which are hard to access
 
@@ -11,12 +17,13 @@ These keys are hard to access if you want to keep the pointing fingers on "F" an
 - PageUp, PageDown
 - Backspace
 - Del
+- Esc
 - ...
 
 # History
-I used Emacs for more than 15 years. Mostly for programming Python. In 2015 I switched from Emacs to PyCharm. In Emacs it is easy to go to the beginning/end of a line. During configuring PyCharm I asked myself: Why not configure this once for all applications? Why configure keyboard short cuts for every single application?
 
-Other example: In thunderbird many users configure a shortcut to delete mails. The del-key works, but users configure a short cut. Why? Because "del" is too hard to access....
+I used Emacs for more than 15 years. Mostly for programming Python. In 2015 I switched from Emacs to PyCharm. In Emacs it is easy to go to the beginning/end of a line. During configuring PyCharm I asked myself: Why configure keyboard short cuts for every single application? Why not configure this once for all applications on my desktop? 
+
 
 # I am happy with most other keys on the keyboard
 
@@ -24,11 +31,7 @@ I know that there are alternative keyboard layouts like neo2 or colemark. But I 
 I want to improve the default layout, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members like I am used to.
 
 
-# I love feedback
 
-You found a typo, you have the same need as I, you know how to solve this?
-
-Please send me advices via the github issue manager!
 
 # Maybe later: Command line
 
@@ -58,4 +61,16 @@ http://askubuntu.com/questions/627432/how-to-install-ibus-typing-booster
 
 https://askubuntu.com/questions/1382762/hyper-key-u-like-arrow-up
 
+# I love feedback
+
+You found a typo, you have the same need as I, you know how to solve this?
+
+Please send me advices via an github issue!
+
+
+
+# More
+
+* [Thomas WOL: Working out Loud](https://github.com/guettli/wol)
+* [Desktop Tips](https://github.com/guettli/desktop-tips-and-tricks)
 
