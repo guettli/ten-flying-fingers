@@ -24,13 +24,25 @@ These keys are hard to access if you want to keep the pointing fingers on "F" an
 
 I used Emacs for more than 15 years. Mostly for programming Python. In 2015 I switched from Emacs to PyCharm. In Emacs it is easy to go to the beginning/end of a line. During configuring PyCharm I asked myself: Why configure keyboard short cuts for every single application? Why not configure this once for all applications on my desktop? 
 
-# Input-Remapper
+# Input-Remapper (Linux only)
 
 [Input-Remapper](https://github.com/sezanzeb/input-remapper) is gtk GUI to remap keys via [python-evdev](https://python-evdev.readthedocs.io/en/latest/)
 
 The first-time-user experience of the GUI could be better, but overall it is easy to remap keys.
 
 First I disabled CapsLock via `gnome-tweaks`. Then I use input-remapper-gtk to add short-cuts.
+
+1. start input-remapper-gtk
+2. Enter your password, since the input-remapper daemon needs root access
+3. Choose the Device
+4. If the input-remapper is already running choose "Stop Injection"
+5. Click on "new entry"
+6. Click on "Change Key"
+7. Now entry the short-cut you want to create. For example CapsLock-J
+8. Then the cursor is in the text-input field. It supports autocomplete. Just type the key which should get executed if you entered the short-cut. For example "Backspace"
+9. Click on "Apply"
+10. Close the application, and check if it is working. The changes should survive a reboot of your machine.
+
 
 I use CapsLock as modifier. Examples:
 
