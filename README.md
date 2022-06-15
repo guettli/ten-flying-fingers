@@ -42,6 +42,11 @@ I use CapsLock as modifier. Examples:
 
 Before I found this tool I wasted several hours, trying to remap keys via xmodmap or other tools. I am happy that I found input-remapper.
 
+If you have two keyboards, for example your laptop and an external USB keyboard, then you can easily copy the config of one keyboard to the next:
+
+```
+cp $HOME/.config/input-remapper/presets/keyboard1/myconfig.json $HOME/.config/input-remapper/presets/keyboard2/
+```
 
 # I am happy with most other keys on the keyboard
 
