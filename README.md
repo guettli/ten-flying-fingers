@@ -67,7 +67,8 @@ I want to improve the default layout, I don't want to replace it. I want to be a
 
 # Related
 
-More desktop related tips are in my [article "Desktop Tips"](https://github.com/guettli/desktop-tips-and-tricks).
+* I post updates to this article here: https://www.reddit.com/r/typing/
+* More desktop related tips are in my [article "Desktop Tips"](https://github.com/guettli/desktop-tips-and-tricks).
 
 
 # Maybe later: Command line
