@@ -1,0 +1,31 @@
+;; Remapping of CapsLock to get a new layer 
+;; https://github.com/kmonad/kmonad
+
+
+(defcfg
+    input  (device-file "/dev/input/by-path/platform-i8042-serio-0-event-kbd")
+    output (uinput-sink "my-kmonad-output")
+    fallthrough true
+)
+(defsrc
+         esc caps bks
+         z       u       i       o  
+    f g  h       j       k       l   ;
+         n       m       ,       .
+)
+(deflayer default
+
+;; I block Escape and Backspace, because I want to force myself to use
+;; the new keymapping.
+
+        XX (layer-toggle capslocklayer) XX
+         _       _       _       _
+    _ _  _       _       _       _  _
+         _       _       _       _
+)
+(deflayer capslocklayer
+    _ _ _
+                     KeyUp     KeyUp        KeyPageUp    KeyPageUp            
+    KeyDelete KeyEsc KeyHome   KeyBackspace KeyLeft      KeyRight    KeyEnd
+                     KeyDown   KeyDown      KeyPageDown  KeyPageDown       
+)
