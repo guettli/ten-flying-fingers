@@ -51,7 +51,18 @@ You can see my config in [remapping-keys.kmonad](./remapping-keys.kmonad).
 * I post updates to this article here: https://www.reddit.com/r/typing/
 * More desktop related tips are in my [article "Desktop Tips"](https://github.com/guettli/desktop-tips-and-tricks).
 
+# Trackpoint with Sandpaper
 
+I want to keep my fingers close to the home row for moving the mouse cursor.
+
+That's why I use a keyboard with Trackpoint.
+
+There are the well-known Lenovo keyboards, but there are alternatives like [Tex Shinobi](https://tex.com.tw/products/shinobi).
+
+To get maximum grip, I stick sandpaper on the trackpoint.
+
+Caution: Don't stick sandpaper on the trackpoint of your laptop. If you close the laptop, then it is likely that
+the sandpaper will scratch the screen.
   
 # Related Questions on Stackoverflow, Mailinglists, Groups
 
