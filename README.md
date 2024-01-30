@@ -2,9 +2,9 @@
 
 I learned [touch typing](https://en.wikipedia.org/wiki/Touch_typing) several years ago. And I can write blind almost everything. 
 
-But some key are not easy to reach. For example these keys: Pos1, End or Del
+But some key are not easy to reach. For example these keys: Pos1, End or Del.
 
-I want to keep the pointing fingers on "F" and "J" as much as possible.
+I want to keep the pointing fingers on "F" and "J" as much as possible (aka "home row").
 
 # Keys which are hard to access
 
