@@ -42,7 +42,7 @@ I want to improve the default layout, I don't want to replace it. I want to be a
 
 # KMonad
 
-I use [KMonad](The Onion of Keyboard Management Tools, available on GNU/Linux, Windows, and MacOS) for that now.
+I use [KMonad](https://github.com/kmonad/kmonad) for that now.
 
 You can see my config in [remapping-keys.kmonad](./remapping-keys.kmonad).
 
