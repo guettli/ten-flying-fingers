@@ -1,4 +1,6 @@
 #!/bin/bash
+# Usage: sudo ./install-systemd-config.sh remapping-keys.kmonad
+
 set -euxo pipefail
 baseconfig=$1
 if [ ! -e "$baseconfig" ]; then
@@ -13,8 +15,7 @@ rm -f /etc/systemd/system/kmonad-*
 
 for device in \
     /dev/input/by-path/platform-i8042-serio-0-event-kbd \
-    /dev/input/by-id/usb-Lenovo_ThinkPad_Compact_USB_Keyboard_with_TrackPoint-event-kbd \
-    /dev/input/by-id/usb-04d9_USB-HID_Keyboard_000000000407-event-kbd; do
+    /dev/input/by-id/usb-Lenovo_ThinkPad_Compact_USB_Keyboard_with_TrackPoint-event-kbd; do
     exe="$(type -p kmonad)"
     name="$(basename $device)"
     config="/etc/systemd/system/kmonad-$name.conf"
