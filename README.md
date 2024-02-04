@@ -46,6 +46,14 @@ I use [KMonad](https://github.com/kmonad/kmonad) for that now.
 
 You can see my config in [remapping-keys.kmonad](./remapping-keys.kmonad).
 
+# Golang
+
+The syntax of KMonad is not easy to understand for me.
+
+I searched a bit and found [go-evdev](https://github.com/holoplot/go-evdev) a package for Go to receive and send events on Linux.
+
+See code in the `cmd` folder.
+
 # Related
 
 * I post updates to this article here: https://www.reddit.com/r/typing/
