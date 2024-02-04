@@ -45,30 +45,22 @@ func listDevices() string {
 		}
 	}
 	if !foundOne {
-		return "No single device was found. It is likely that you have no permission to access /dev/input/...\n"
+		return "No single device was found. It is likely that you have no permission to access /dev/input/... (`sudo` might help)\n"
 	}
 	return strings.Join(lines, "\n")
 }
 
-func OpenWithFlags(full string, i int) {
-	panic("unimplemented")
-}
-
-func cloneDevice(devicePath string) {
-	targetDev, err := evdev.Open(devicePath)
+func cloneDevice(devicePath string) (targetDev *evdev.InputDevice, cloneDev *evdev.InputDevice, err error) {
+	targetDev, err = evdev.Open(devicePath)
 	if err != nil {
-		fmt.Printf("failed to open target device for cloning: %s", err.Error())
-		return
-
+		return nil, nil, fmt.Errorf("failed to open target device for cloning: %s", err.Error())
 	}
-	defer targetDev.Close()
 
 	clonedDev, err := evdev.CloneDevice("my-device-clone", targetDev)
 	if err != nil {
-		fmt.Printf("failed to clone device: %s", err.Error())
-		return
+		return nil, nil, fmt.Errorf("failed to clone device: %s", err.Error())
 	}
-	defer clonedDev.Close()
+	return targetDev, clonedDev, nil
 }
 
 func usage() {
@@ -95,10 +87,29 @@ func main() {
 			usage()
 			return
 		}
-		cloneDevice(os.Args[2])
+		target, clone, err := cloneDevice(os.Args[2])
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		handle(target, clone)
+
 	default:
 		usage()
 		return
+	}
+}
+
+func handle(target *evdev.InputDevice, clone *evdev.InputDevice) error {
+	defer target.Close()
+	defer clone.Close()
+	for {
+		ev, err := target.ReadOne()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("event %+v\n", ev)
+		clone.WriteOne(ev)
 	}
 }
 
