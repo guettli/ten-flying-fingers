@@ -92,7 +92,8 @@ func main() {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		handle(target, clone)
+		err = handle(target, clone)
+		fmt.Println(err.Error())
 
 	default:
 		usage()
@@ -103,10 +104,20 @@ func main() {
 func handle(target *evdev.InputDevice, clone *evdev.InputDevice) error {
 	defer target.Close()
 	defer clone.Close()
+	target.Grab()
+	targetName, err := target.Name()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Grabbing %s\n", targetName)
 	for {
 		ev, err := target.ReadOne()
 		if err != nil {
 			return err
+		}
+		if ev.Code == evdev.KEY_A {
+			fmt.Println("I don't like that key")
+			continue
 		}
 		fmt.Printf("event %+v\n", ev)
 		clone.WriteOne(ev)
