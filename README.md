@@ -63,18 +63,6 @@ To get maximum grip, I stick sandpaper on the trackpoint.
 
 Caution: Don't stick sandpaper on the trackpoint of your laptop. If you close the laptop, then it is likely that
 the sandpaper will scratch the screen.
-  
-# Related Questions on Stackoverflow, Mailinglists, Groups
-
-http://stackoverflow.com/questions/27813748/clone-input-device-with-python-uniput
-
-http://stackoverflow.com/questions/27581500/hook-into-linux-key-event-handling
-
-http://askubuntu.com/questions/401595/autocomplete-at-desktop-level
-
-http://askubuntu.com/questions/627432/how-to-install-ibus-typing-booster
-
-https://askubuntu.com/questions/1382762/hyper-key-u-like-arrow-up
 
 # I love feedback
 
