@@ -18,14 +18,15 @@
 ;; I block Escape and Backspace, because I want to force myself to use
 ;; the new keymapping.
 
-        XX (layer-toggle capslocklayer) XX
+         _ (layer-toggle capslocklayer) _
          _       _       _       _
     _ _  _       _       _       _  _
          _       _       _       _
 )
+
 (deflayer capslocklayer
     _ _ _
                      KeyUp     KeyUp        KeyPageUp    KeyPageUp            
     KeyDelete KeyEsc KeyHome   KeyBackspace KeyLeft      KeyRight    KeyEnd
-                     KeyDown   KeyDown      KeyPageDown  KeyPageDown       
+                     KeyDown   KeyDown      KeyPageDown  _       
 )
