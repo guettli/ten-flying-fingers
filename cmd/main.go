@@ -9,6 +9,14 @@ import (
 	"github.com/holoplot/go-evdev"
 )
 
+const (
+	UP     = 0
+	DOWN   = 1
+	REPEAT = 2
+)
+
+var keyEventValueToString = []string{"/", "_", "="}
+
 func listDevices() string {
 	basePath := "/dev/input"
 
@@ -50,23 +58,23 @@ func listDevices() string {
 	return strings.Join(lines, "\n")
 }
 
-func cloneDevice(devicePath string) (targetDev *evdev.InputDevice, cloneDev *evdev.InputDevice, err error) {
-	targetDev, err = evdev.Open(devicePath)
+func cloneDevice(devicePath string) (sourceDev *evdev.InputDevice, cloneDev *evdev.InputDevice, err error) {
+	sourceDev, err = evdev.Open(devicePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open target device for cloning: %s", err.Error())
+		return nil, nil, fmt.Errorf("failed to open the source device for cloning: %s", err.Error())
 	}
 
-	clonedDev, err := evdev.CloneDevice("my-device-clone", targetDev)
+	clonedDev, err := evdev.CloneDevice("my-device-clone", sourceDev)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to clone device: %s", err.Error())
 	}
-	return targetDev, clonedDev, nil
+	return sourceDev, clonedDev, nil
 }
 
 func usage() {
 	fmt.Printf(`Create a new input device from an existing one
 Usage: 
-  %s clone /dev/input/...
+  %s print /dev/input/...
 
   Devices which look like a keyboard:
 %s
@@ -82,36 +90,51 @@ func main() {
 	cmd := os.Args[1]
 
 	switch cmd {
-	case "clone":
+	case "print":
 		if len(os.Args) < 3 {
 			usage()
 			return
 		}
-		target, clone, err := cloneDevice(os.Args[2])
+		source, clone, err := cloneDevice(os.Args[2])
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		err = handle(target, clone)
+		err = printEvents(source, clone)
 		fmt.Println(err.Error())
-
+		return
+	case "record":
+		if len(os.Args) < 3 {
+			usage()
+			return
+		}
+		err := record(os.Args[2])
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		return
 	default:
 		usage()
 		return
 	}
 }
 
-func handle(target *evdev.InputDevice, clone *evdev.InputDevice) error {
-	defer target.Close()
+func record(targetPath string) error {
+	source, clone, err := cloneDevice(targetPath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	defer source.Close()
 	defer clone.Close()
-	target.Grab()
-	targetName, err := target.Name()
+	source.Grab()
+	targetName, err := source.Name()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Grabbing %s\n", targetName)
 	for {
-		ev, err := target.ReadOne()
+		ev, err := source.ReadOne()
 		if err != nil {
 			return err
 		}
@@ -122,6 +145,51 @@ func handle(target *evdev.InputDevice, clone *evdev.InputDevice) error {
 		fmt.Printf("event %+v\n", ev)
 		clone.WriteOne(ev)
 	}
+}
+
+func printEvents(source *evdev.InputDevice, clone *evdev.InputDevice) error {
+	defer source.Close()
+	defer clone.Close()
+	source.Grab()
+	targetName, err := source.Name()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Grabbing %s\n", targetName)
+	for {
+		ev, err := source.ReadOne()
+		if err != nil {
+			return err
+		}
+		if ev.Type == evdev.EV_SYN {
+			continue
+		}
+		var s string
+		switch ev.Type {
+		case evdev.EV_KEY:
+			s, err = eventKeyToString(ev)
+			if err != nil {
+				return err
+			}
+		default:
+			s = ev.String()
+		}
+		fmt.Println(s)
+	}
+}
+
+func eventKeyToString(ev *evdev.InputEvent) (string, error) {
+	if ev.Type != evdev.EV_KEY {
+		return "", fmt.Errorf("need a EV_KEY event. Got %s", ev.String())
+	}
+	name := ev.CodeName()
+	name = strings.TrimPrefix(name, "KEY_")
+	name = strings.ToLower(name)
+	if ev.Value > 2 {
+		return "", fmt.Errorf("ev.Value is unknown %d. %s", ev.Value, ev.String())
+	}
+	name = name + keyEventValueToString[ev.Value]
+	return name, nil
 }
 
 func Map[T any, S any](t []T, f func(T) S) []S {
