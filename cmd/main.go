@@ -121,6 +121,9 @@ func findDev() (string, error) {
 		if ev.Value != UP {
 			continue
 		}
+		if !strings.HasPrefix(ev.CodeName(), "KEY_") {
+			continue
+		}
 		found = evOfPath.path
 		break
 	}
