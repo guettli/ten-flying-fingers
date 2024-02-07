@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -76,11 +77,72 @@ func cloneDevice(devicePath string) (sourceDev *evdev.InputDevice, cloneDev *evd
 func usage() {
 	fmt.Printf(`Create a new input device from an existing one
 Usage: 
-  %s print /dev/input/...
+  %s print [ /dev/input/... | detect ] (use "detect" to interactively choose the device)
 
   Devices which look like a keyboard:
 %s
 `, os.Args[0], listDevices())
+}
+
+func findDev() (string, error) {
+	dev_input := "/dev/input"
+	entries, err := os.ReadDir(dev_input)
+	if err != nil {
+		return "", err
+	}
+	c := make(chan eventOfPath)
+	for _, entry := range entries {
+		if entry.Type()&os.ModeCharDevice == 0 {
+			// not a character device file.
+			continue
+		}
+		path := filepath.Join(dev_input, entry.Name())
+		dev, err := evdev.Open(path)
+		if err != nil {
+			if strings.Contains(err.Error(), "inappropriate ioctl for device") {
+				continue
+			}
+			fmt.Printf("failed to open %q: %s \n", path, err.Error())
+			continue
+		}
+		defer func(dev *evdev.InputDevice, path string) {
+			dev.Close()
+		}(dev, path)
+		go readEvents(dev, path, c)
+	}
+	fmt.Println("Please use the device you want to use, now. Capturing events ....")
+	found := ""
+	for {
+		evOfPath := <-c
+		ev := evOfPath.event
+		if ev.Type != evdev.EV_KEY {
+			continue
+		}
+		if ev.Value != UP {
+			continue
+		}
+		found = evOfPath.path
+		break
+	}
+	if found == "" {
+		return "", fmt.Errorf("no device found which creates keyboard events")
+	}
+	return found, nil
+}
+
+type eventOfPath struct {
+	path  string
+	event *evdev.InputEvent
+}
+
+func readEvents(dev *evdev.InputDevice, path string, c chan eventOfPath) {
+	for {
+		ev, err := dev.ReadOne()
+		if err != nil {
+			return
+		}
+		c <- eventOfPath{path, ev}
+	}
 }
 
 func main() {
@@ -97,7 +159,19 @@ func main() {
 			usage()
 			return
 		}
-		source, clone, err := cloneDevice(os.Args[2])
+		path := ""
+		if os.Args[2] == "detect" {
+			p, err := findDev()
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+			path = p
+			fmt.Printf("Using device %q\n", path)
+		} else {
+			path = os.Args[2]
+		}
+		source, clone, err := cloneDevice(path)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -205,7 +279,6 @@ func printEvents(sourceDevice *evdev.InputDevice, clone *evdev.InputDevice) erro
 			fmt.Println("exit")
 			break
 		}
-		prevEvent = *ev
 		if err != nil {
 			return err
 		}
@@ -219,7 +292,19 @@ func printEvents(sourceDevice *evdev.InputDevice, clone *evdev.InputDevice) erro
 		default:
 			s = ev.String()
 		}
-		fmt.Println(s)
+
+		deltaCode := "" // if down/up keys overlap
+		if ev.Value == UP &&
+			prevEvent.Value == DOWN &&
+			prevEvent.Code != ev.Code {
+			deltaCode = fmt.Sprintf("(overlap %s->%s)", prevEvent.CodeName(), ev.CodeName())
+		}
+
+		fmt.Printf("%4dms  %s  %s\n", duration.Milliseconds(), s, deltaCode)
+		if ev.Value == UP && ev.Code == evdev.KEY_SPACE {
+			fmt.Println()
+		}
+		prevEvent = *ev
 	}
 	return nil
 }
@@ -261,6 +346,12 @@ func (s *Source) getOneEventOrTimeout(timeout time.Duration) (ev *evdev.InputEve
 	}
 }
 
+var shortKeyNames = map[string]string{
+	"space":      "␣",
+	"leftshift":  "⇧ ",
+	"rightshift": " ⇧",
+}
+
 func eventKeyToString(ev *evdev.InputEvent) (string, error) {
 	if ev.Type != evdev.EV_KEY {
 		return "", fmt.Errorf("need a EV_KEY event. Got %s", ev.String())
@@ -268,9 +359,14 @@ func eventKeyToString(ev *evdev.InputEvent) (string, error) {
 	name := ev.CodeName()
 	name = strings.TrimPrefix(name, "KEY_")
 	name = strings.ToLower(name)
+	short, ok := shortKeyNames[name]
+	if ok {
+		name = short
+	}
 	if ev.Value > 2 {
 		return "", fmt.Errorf("ev.Value is unknown %d. %s", ev.Value, ev.String())
 	}
+
 	name = name + keyEventValueToString[ev.Value]
 	return name, nil
 }
