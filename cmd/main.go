@@ -5,6 +5,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/holoplot/go-evdev"
 )
@@ -101,7 +103,9 @@ func main() {
 			os.Exit(1)
 		}
 		err = printEvents(source, clone)
-		fmt.Println(err.Error())
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 		return
 	case "record":
 		if len(os.Args) < 3 {
@@ -147,17 +151,51 @@ func record(targetPath string) error {
 	}
 }
 
-func printEvents(source *evdev.InputDevice, clone *evdev.InputDevice) error {
-	defer source.Close()
+func printEvents(sourceDevice *evdev.InputDevice, clone *evdev.InputDevice) error {
+	defer sourceDevice.Close()
 	defer clone.Close()
-	source.Grab()
-	targetName, err := source.Name()
+	sourceDevice.Grab()
+	targetName, err := sourceDevice.Name()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Grabbing %s\n", targetName)
+	fmt.Printf("Hold `x` for 1 second to exit.\n")
+	prevEvent := evdev.InputEvent{
+		Time:  timeToSyscallTimeval(time.Now()),
+		Type:  evdev.EV_KEY,
+		Code:  evdev.KEY_SPACE,
+		Value: UP,
+	}
+	source := Source{
+		inputDevice:  sourceDevice,
+		eventChannel: make(chan *ReadResult),
+	}
+	go source.readAndWriteForever()
 	for {
-		ev, err := source.ReadOne()
+		ev, timedOut, err := source.getOneEventOrTimeout(time.Duration(time.Second))
+		if err != nil {
+			return err
+		}
+		if timedOut {
+			fmt.Println()
+			duration := time.Since(syscallTimevalToTime(prevEvent.Time))
+			if duration > time.Duration(10*time.Second) {
+				fmt.Println("timeout")
+				break
+			}
+			continue
+		}
+		duration := time.Duration(ev.Time.Nano() - prevEvent.Time.Nano())
+		// fmt.Printf("%v %v %v\n", ev.Time.Nano(), prevTime, duration.String())
+
+		if duration > time.Second &&
+			ev.Code == evdev.KEY_X &&
+			ev.Value == UP {
+			fmt.Println("exit")
+			break
+		}
+		prevEvent = *ev
 		if err != nil {
 			return err
 		}
@@ -175,6 +213,44 @@ func printEvents(source *evdev.InputDevice, clone *evdev.InputDevice) error {
 			s = ev.String()
 		}
 		fmt.Println(s)
+	}
+	return nil
+}
+
+func timeToSyscallTimeval(t time.Time) syscall.Timeval {
+	return syscall.Timeval{
+		Sec:  int64(t.Unix()),              // Seconds since Unix epoch
+		Usec: int64(t.Nanosecond() / 1000), // Nanoseconds to microseconds
+
+	}
+}
+
+func syscallTimevalToTime(tv syscall.Timeval) time.Time {
+	return time.Unix(tv.Sec, tv.Usec*1000)
+}
+
+type ReadResult struct {
+	event *evdev.InputEvent
+	err   error
+}
+type Source struct {
+	inputDevice  *evdev.InputDevice
+	eventChannel chan *ReadResult
+}
+
+func (s *Source) readAndWriteForever() {
+	for {
+		ev, err := s.inputDevice.ReadOne()
+		s.eventChannel <- &ReadResult{ev, err}
+	}
+}
+
+func (s *Source) getOneEventOrTimeout(timeout time.Duration) (ev *evdev.InputEvent, timedOut bool, err error) {
+	select {
+	case readResult := <-s.eventChannel:
+		return readResult.event, false, readResult.err
+	case <-time.After(timeout):
+		return nil, true, nil
 	}
 }
 
