@@ -184,8 +184,18 @@ func printEvents(sourceDevice *evdev.InputDevice, clone *evdev.InputDevice) erro
 				fmt.Println("timeout")
 				break
 			}
+			if duration > time.Second &&
+				prevEvent.Code == evdev.KEY_X &&
+				prevEvent.Value == DOWN {
+				fmt.Println("exit")
+				break
+			}
 			continue
 		}
+		if ev.Type == evdev.EV_SYN {
+			continue
+		}
+
 		duration := time.Duration(ev.Time.Nano() - prevEvent.Time.Nano())
 		// fmt.Printf("%v %v %v\n", ev.Time.Nano(), prevTime, duration.String())
 
@@ -198,9 +208,6 @@ func printEvents(sourceDevice *evdev.InputDevice, clone *evdev.InputDevice) erro
 		prevEvent = *ev
 		if err != nil {
 			return err
-		}
-		if ev.Type == evdev.EV_SYN {
-			continue
 		}
 		var s string
 		switch ev.Type {
