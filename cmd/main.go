@@ -92,6 +92,7 @@ func findDev() (string, error) {
 		return "", err
 	}
 	c := make(chan eventOfPath)
+	foundDevices := 0
 	for _, entry := range entries {
 		if entry.Type()&os.ModeCharDevice == 0 {
 			// not a character device file.
@@ -106,10 +107,14 @@ func findDev() (string, error) {
 			fmt.Printf("failed to open %q: %s \n", path, err.Error())
 			continue
 		}
+		foundDevices++
 		defer func(dev *evdev.InputDevice, path string) {
 			dev.Close()
 		}(dev, path)
 		go readEvents(dev, path, c)
+	}
+	if foundDevices == 0 {
+		return "", fmt.Errorf("No device found")
 	}
 	fmt.Println("Please use the device you want to use, now. Capturing events ....")
 	found := ""
@@ -157,6 +162,28 @@ func main() {
 	}
 }
 
+func getDevicePathFromArgsSlice(args []string) (*evdev.InputDevice, error) {
+	if len(args) > 1 {
+		return nil, fmt.Errorf("too many arguments")
+	}
+	path := ""
+	if len(args) == 0 {
+		p, err := findDev()
+		if err != nil {
+			return nil, err
+		}
+		fmt.Printf("Using device %q\n", p)
+		path = p
+	} else {
+		path = args[0]
+	}
+	sourceDev, err := evdev.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open the source device: %w", err)
+	}
+	return sourceDev, nil
+}
+
 func myMain() error {
 	defer os.Stdout.Close()
 	if len(os.Args) < 2 {
@@ -168,25 +195,10 @@ func myMain() error {
 
 	switch cmd {
 	case "print":
-		if len(os.Args) > 3 {
-			usage()
-			return nil
-		}
-		path := ""
-		if len(os.Args) == 2 {
-			p, err := findDev()
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-			path = p
-			fmt.Printf("Using device %q\n", path)
-		} else {
-			path = os.Args[2]
-		}
-		sourceDev, err := evdev.Open(path)
+		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
 		if err != nil {
-			return fmt.Errorf("failed to open the source device: %w", err)
+			fmt.Println(err.Error())
+			os.Exit(1)
 		}
 		err = printEvents(sourceDev)
 		if err != nil {
@@ -194,11 +206,12 @@ func myMain() error {
 		}
 		return nil
 	case "csv":
-		if len(os.Args) != 3 {
-			usage()
-			return nil
+		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
 		}
-		err := csv(os.Args[2])
+		err = csv(sourceDev)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
@@ -213,7 +226,6 @@ func myMain() error {
 			fmt.Println(err.Error())
 		}
 		return nil
-
 	default:
 		usage()
 		return nil
@@ -297,11 +309,7 @@ func createEventsFromCsv(csvPath string) error {
 	return nil
 }
 
-func csv(sourcePath string) error {
-	sourceDev, err := evdev.Open(sourcePath)
-	if err != nil {
-		return fmt.Errorf("failed to open the source device: %w", err)
-	}
+func csv(sourceDev *evdev.InputDevice) error {
 	defer sourceDev.Close()
 	targetName, err := sourceDev.Name()
 	if err != nil {
