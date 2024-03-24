@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +27,10 @@ type (
 
 func (e *Event) KeyCode() KeyCode {
 	return KeyCode(e.Code)
+}
+
+func (e *Event) TimeSub(e2 Event) time.Duration {
+	return syscallTimevalToTime(e.Time).Sub(syscallTimevalToTime(e2.Time))
 }
 
 var keyEventValueToString = []string{"/", "_", "="}
@@ -331,6 +334,17 @@ type Combo struct {
 	OutKeys []KeyCode
 }
 
+func CopyCombos(combos []Combo) []Combo {
+	newCombos := make([]Combo, 0, len(combos))
+	for i := range combos {
+		newCombos = append(newCombos, Combo{
+			Keys:    slices.Clone(combos[i].Keys),
+			OutKeys: slices.Clone(combos[i].OutKeys),
+		})
+	}
+	return newCombos
+}
+
 // Man in the Middle.
 func mitm(sourceDev *evdev.InputDevice) error {
 	err := sourceDev.Grab()
@@ -342,14 +356,15 @@ func mitm(sourceDev *evdev.InputDevice) error {
 		return err
 	}
 	defer outDev.Close()
-	combos := []Combo{
+	allCombos := []Combo{
 		{
-			Keys: []KeyCode{evdev.KEY_F, evdev.KEY_J},
+			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
+			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
 	maxLength := 0
-	for i := range combos {
-		l := len(combos[i].Keys)
+	for i := range allCombos {
+		l := len(allCombos[i].Keys)
 		if l > maxLength {
 			maxLength = l
 		}
@@ -358,6 +373,7 @@ func mitm(sourceDev *evdev.InputDevice) error {
 		return fmt.Errorf("No combo contains keys")
 	}
 	buffer := NewBuffer(maxLength)
+	combos := CopyCombos(allCombos)
 	for {
 		evP, err := sourceDev.ReadOne()
 		if err != nil {
@@ -376,6 +392,12 @@ func mitm(sourceDev *evdev.InputDevice) error {
 			combos, err = buffer.HandleDownChar(Event(*evP), combos)
 		default:
 			return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
+		}
+		if err != nil {
+			return err
+		}
+		if len(combos) == 0 {
+			combos = CopyCombos(allCombos)
 		}
 	}
 }
@@ -409,6 +431,18 @@ func (b *Buffer) Len() int {
 	return len(b.buf)
 }
 
+// The buffered events don't match a combo.
+// Write out the buffered events and the current event.
+func (b *Buffer) FlushBuffer(ev Event) error {
+	for _, bufEvent := range b.buf {
+		if err := b.WriteEvent(bufEvent); err != nil {
+			return err
+		}
+	}
+	b.buf = nil
+	return b.WriteEvent(ev)
+}
+
 func (b *Buffer) HandleUpChar(
 	ev Event,
 	combos []Combo,
@@ -431,33 +465,50 @@ func (b *Buffer) HandleUpChar(
 		// No corresponding downEvent. Write it out.
 		return combos, b.WriteEvent(ev)
 	}
+	for _, combo := range combos {
+		if len(combo.Keys) == 0 {
+			lastEvent := b.buf[len(b.buf)-1]
+			if ev.TimeSub(lastEvent) < 50*time.Millisecond {
+				// short overlap. This seems to be two characters
+				// after each other, not a combo.
+				// Write out all buffered events.
+				return nil, b.FlushBuffer(ev)
+			}
 
-	// check time of overlap: Tiny overlap, then
-	// don't fire the combo. Otherwise fire the combo.
-	for i := range combos {
-		if ....
+			// All keys of this combo got pressed.
+			err := b.WriteCombo(combo)
+			if err != nil {
+				return nil, err
+			}
+			b.buf = nil
+			return nil, nil
+		}
 	}
-
-	return combos, b.WriteEvent(ev)
+	// no combo has matched. Write event to buffer
+	b.buf = append(b.buf, ev)
+	return combos, nil
 }
 
-func (b *Buffer) WriteCombo(combo *Combo) error {
-	var errs []error
+func (b *Buffer) WriteCombo(combo Combo) error {
 	for i := range combo.OutKeys {
-		errs = append(errs, b.WriteEvent(Event{
+		if err := b.WriteEvent(Event{
 			Time:  timeToSyscallTimeval(time.Now()),
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(combo.OutKeys[i]),
 			Value: DOWN,
-		}))
-		errs = append(errs, b.WriteEvent(Event{
+		}); err != nil {
+			return err
+		}
+		if err := b.WriteEvent(Event{
 			Time:  timeToSyscallTimeval(time.Now()),
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(combo.OutKeys[i]),
 			Value: UP,
-		}))
+		}); err != nil {
+			return err
+		}
 	}
-	return errors.Join(errs...)
+	return nil
 }
 
 func (b *Buffer) HandleDownChar(
@@ -468,21 +519,26 @@ func (b *Buffer) HandleDownChar(
 	err error,
 ) {
 	var openCombos []Combo
-	// Could this event start a combo?
+	// Does the current event match to a combo?
 	for _, combo := range combos {
 		for k := range combo.Keys {
 			if combo.Keys[k] == ev.KeyCode() {
 				// reduce active combos
-				restOfCombo := combo // copy it
-				restOfCombo.Keys = slices.Delete(combo.Keys, k, k)
-				openCombos = append(openCombos, restOfCombo)
+				combo.Keys = slices.Delete(combo.Keys, k, k)
+				openCombos = append(openCombos, combo)
 				break
 			}
 		}
 	}
 	if len(openCombos) == 0 {
-		// No combo is active. Write out event.
-		return combos, b.WriteEvent(ev)
+		// No combo is matched.
+		if b.Len() == 0 {
+			// No combo was active. Write out event
+			return combos, b.WriteEvent(ev)
+		}
+		// combo was not finished. Write out buffer and
+		// reset combos to allCombos.
+		return nil, b.FlushBuffer(ev)
 	}
 
 	// At least one Combo is active.
