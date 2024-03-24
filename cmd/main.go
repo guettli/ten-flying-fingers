@@ -216,6 +216,13 @@ func myMain() error {
 			fmt.Println(err.Error())
 		}
 		return nil
+	case "mitm":
+		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		return mitm(sourceDev)
 	case "create-events-from-csv":
 		if len(os.Args) != 3 {
 			usage()
@@ -307,6 +314,89 @@ func createEventsFromCsv(csvPath string) error {
 		return fmt.Errorf("error reading %q: %w", csvPath, err)
 	}
 	return nil
+}
+
+type Combo struct {
+	Keys []evdev.EvCode
+}
+
+// Man in the Middle.
+func mitm(sourceDev *evdev.InputDevice) error {
+	err := sourceDev.Grab()
+	if err != nil {
+		return err
+	}
+	outDev, err := evdev.CloneDevice("clone", sourceDev)
+	if err != nil {
+		return err
+	}
+	defer outDev.Close()
+	combos := []Combo{
+		{
+			Keys: []evdev.EvCode{evdev.KEY_F, evdev.KEY_J},
+		},
+	}
+	maxLength := 0
+	for i := range combos {
+		l := len(combos[i].Keys)
+		if l > maxLength {
+			maxLength = l
+		}
+	}
+	if maxLength == 0 {
+		return fmt.Errorf("No combo contains keys")
+	}
+	buffer := make([]evdev.InputEvent, 0, maxLength)
+	for {
+		evP, err := sourceDev.ReadOne()
+		if err != nil {
+			return err
+		}
+		var ev evdev.InputEvent = *evP
+	}
+}
+
+func mitmHandleOneChar(
+	ev evdev.InputEvent,
+	outDev evdev.InputDevice,
+	buffer []evdev.InputEvent,
+	combos []Combo,
+) (
+	bufferOut []evdev.InputEvent,
+	combosOut []Combo,
+	err error,
+) {
+	if ev.Code != evdev.EV_KEY {
+		return buffer, combos, outDev.WriteOne(&ev)
+	}
+	if len(buffer) == 0 {
+		if ev.Value == UP {
+			return buffer, combos, outDev.WriteOne(&ev)
+		}
+		openCombos := mitmStartCombo(buffer, ev, combos)
+		if len(openCombos) > 0 {
+			buffer = append(buffer, ev)
+			combos = openCombos
+		}
+		return buffer, combos, nil
+	}
+}
+
+func mitmStartCombo(buffer []evdev.InputEvent, ev evdev.InputEvent, combos []Combo) (
+	openCombos []Combo,
+) {
+	// Could this event start a combo?
+	for _, combo := range combos {
+		for k := range combo.Keys {
+			if combo.Keys[k] == ev.Code {
+				restOfCombo := combo // copy it
+				restOfCombo.Keys = slices.Delete(combo.Keys, k, k)
+				openCombos = append(openCombos, restOfCombo)
+			}
+		}
+	}
+
+	return openCombos
 }
 
 func csv(sourceDev *evdev.InputDevice) error {
