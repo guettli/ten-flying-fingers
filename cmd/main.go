@@ -435,7 +435,7 @@ func (b *Buffer) HandleUpChar(
 	// check time of overlap: Tiny overlap, then
 	// don't fire the combo. Otherwise fire the combo.
 	for i := range combos {
-		if ...
+		if ....
 	}
 
 	return combos, b.WriteEvent(ev)
