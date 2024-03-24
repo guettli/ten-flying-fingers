@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,15 @@ const (
 	DOWN   = 1
 	REPEAT = 2
 )
+
+type (
+	Event   evdev.InputEvent
+	KeyCode evdev.EvCode
+)
+
+func (e *Event) KeyCode() KeyCode {
+	return KeyCode(e.Code)
+}
 
 var keyEventValueToString = []string{"/", "_", "="}
 
@@ -65,13 +75,13 @@ func listDevices() string {
 
 func usage() {
 	fmt.Printf(`Create a new input device from an existing one
-Usage: 
-  %s print [ /dev/input/... ] 
- 
+Usage:
+  %s print [ /dev/input/... ]
+
       print events.
 	  If no device was given, then the programm listens to all device and asks for a key press.
 
-  %s csv [ /dev/input/... ] 
+  %s csv [ /dev/input/... ]
 
      Write the events in CSV format.
 	 If no device was given, then the programm listens to all device and asks for a key press.
@@ -317,7 +327,8 @@ func createEventsFromCsv(csvPath string) error {
 }
 
 type Combo struct {
-	Keys []evdev.EvCode
+	Keys    []KeyCode
+	OutKeys []KeyCode
 }
 
 // Man in the Middle.
@@ -333,7 +344,7 @@ func mitm(sourceDev *evdev.InputDevice) error {
 	defer outDev.Close()
 	combos := []Combo{
 		{
-			Keys: []evdev.EvCode{evdev.KEY_F, evdev.KEY_J},
+			Keys: []KeyCode{evdev.KEY_F, evdev.KEY_J},
 		},
 	}
 	maxLength := 0
@@ -346,57 +357,137 @@ func mitm(sourceDev *evdev.InputDevice) error {
 	if maxLength == 0 {
 		return fmt.Errorf("No combo contains keys")
 	}
-	buffer := make([]evdev.InputEvent, 0, maxLength)
+	buffer := NewBuffer(maxLength)
 	for {
 		evP, err := sourceDev.ReadOne()
 		if err != nil {
 			return err
 		}
-		var ev evdev.InputEvent = *evP
+		if evP.Code != evdev.EV_KEY {
+			err = outDev.WriteOne(evP)
+			if err != nil {
+				return err
+			}
+		}
+		switch evP.Value {
+		case UP:
+			combos, err = buffer.HandleUpChar(Event(*evP), combos)
+		case DOWN:
+			combos, err = buffer.HandleDownChar(Event(*evP), combos)
+		default:
+			return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
+		}
 	}
 }
 
-func mitmHandleOneChar(
-	ev evdev.InputEvent,
-	outDev evdev.InputDevice,
-	buffer []evdev.InputEvent,
+func NewBuffer(maxLength int) *Buffer {
+	b := Buffer{}
+	b.buf = make([]Event, 0, maxLength)
+	return &b
+}
+
+type Buffer struct {
+	buf    []Event
+	outDev evdev.InputDevice
+}
+
+func (b *Buffer) WriteEvent(ev Event) error {
+	inputEvent := evdev.InputEvent(ev)
+	return b.outDev.WriteOne(&inputEvent)
+}
+
+func (b *Buffer) ContainsKey(key KeyCode) bool {
+	for i := range b.buf {
+		if b.buf[i].Code == evdev.EvCode(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *Buffer) Len() int {
+	return len(b.buf)
+}
+
+func (b *Buffer) HandleUpChar(
+	ev Event,
 	combos []Combo,
 ) (
-	bufferOut []evdev.InputEvent,
 	combosOut []Combo,
 	err error,
 ) {
-	if ev.Code != evdev.EV_KEY {
-		return buffer, combos, outDev.WriteOne(&ev)
+	if b.Len() == 0 {
+		// no Combo active. Write event, return
+		return combos, b.WriteEvent(ev)
 	}
-	if len(buffer) == 0 {
-		if ev.Value == UP {
-			return buffer, combos, outDev.WriteOne(&ev)
+	var downEvent *Event
+	for i := range b.buf {
+		if b.buf[i].Value == DOWN && b.buf[i].Code == ev.Code {
+			downEvent = &b.buf[i]
+			break
 		}
-		openCombos := mitmStartCombo(buffer, ev, combos)
-		if len(openCombos) > 0 {
-			buffer = append(buffer, ev)
-			combos = openCombos
-		}
-		return buffer, combos, nil
 	}
+	if downEvent == nil {
+		// No corresponding downEvent. Write it out.
+		return combos, b.WriteEvent(ev)
+	}
+
+	// check time of overlap: Tiny overlap, then
+	// don't fire the combo. Otherwise fire the combo.
+	for i := range combos {
+		if ...
+	}
+
+	return combos, b.WriteEvent(ev)
 }
 
-func mitmStartCombo(buffer []evdev.InputEvent, ev evdev.InputEvent, combos []Combo) (
-	openCombos []Combo,
+func (b *Buffer) WriteCombo(combo *Combo) error {
+	var errs []error
+	for i := range combo.OutKeys {
+		errs = append(errs, b.WriteEvent(Event{
+			Time:  timeToSyscallTimeval(time.Now()),
+			Type:  evdev.EV_KEY,
+			Code:  evdev.EvCode(combo.OutKeys[i]),
+			Value: DOWN,
+		}))
+		errs = append(errs, b.WriteEvent(Event{
+			Time:  timeToSyscallTimeval(time.Now()),
+			Type:  evdev.EV_KEY,
+			Code:  evdev.EvCode(combo.OutKeys[i]),
+			Value: UP,
+		}))
+	}
+	return errors.Join(errs...)
+}
+
+func (b *Buffer) HandleDownChar(
+	ev Event,
+	combos []Combo,
+) (
+	combosOut []Combo,
+	err error,
 ) {
+	var openCombos []Combo
 	// Could this event start a combo?
 	for _, combo := range combos {
 		for k := range combo.Keys {
-			if combo.Keys[k] == ev.Code {
+			if combo.Keys[k] == ev.KeyCode() {
+				// reduce active combos
 				restOfCombo := combo // copy it
 				restOfCombo.Keys = slices.Delete(combo.Keys, k, k)
 				openCombos = append(openCombos, restOfCombo)
+				break
 			}
 		}
 	}
+	if len(openCombos) == 0 {
+		// No combo is active. Write out event.
+		return combos, b.WriteEvent(ev)
+	}
 
-	return openCombos
+	// At least one Combo is active.
+	b.buf = append(b.buf, ev)
+	return openCombos, nil
 }
 
 func csv(sourceDev *evdev.InputDevice) error {
