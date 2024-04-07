@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/holoplot/go-evdev"
 	"github.com/stretchr/testify/require"
@@ -67,36 +66,44 @@ var asCombo = `1711354959;655837;EV_KEY;KEY_A;down
 1711354964;359906;EV_KEY;KEY_A;up
 `
 
-var asdfNoCombo = `1712516686;34146;EV_KEY;KEY_S;down
-1712516686;166940;EV_KEY;KEY_S;up
-1712516686;747419;EV_KEY;KEY_D;down
-1712516686;879558;EV_KEY;KEY_D;up
-1712516687;527079;EV_KEY;KEY_F;down
-1712516687;686178;EV_KEY;KEY_F;up
+var asdfTestEvents = `1712518531;862966;EV_KEY;KEY_A;down
+1712518532;22233;EV_KEY;KEY_A;up
+1712518532;478346;EV_KEY;KEY_S;down
+1712518532;637660;EV_KEY;KEY_S;up
+1712518533;35798;EV_KEY;KEY_D;down
+1712518533;132219;EV_KEY;KEY_D;up
+1712518533;948232;EV_KEY;KEY_F;down
+1712518534;116984;EV_KEY;KEY_F;up
 `
 
-func Test_manInTheMiddle(t *testing.T) {
+func Test_manInTheMiddle_asdf_noMatch(t *testing.T) {
 	ew := writeToSlice{}
-	er, err := NewReadFromSlice(asdfNoCombo)
+	er, err := NewReadFromSlice(asdfTestEvents)
 	require.Nil(t, err)
-	timeout := time.After(1 * time.Second)
-	done := make(chan error)
 	allCombos := []Combo{
 		{
 			Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
-	go func() {
-		done <- manInTheMiddle(er, &ew, allCombos)
-	}()
-
-	select {
-	case <-timeout:
-		t.Fatal("Test didn't finish in time")
-	case err = <-done:
-	}
+	err = manInTheMiddle(er, &ew, allCombos)
 	require.ErrorIs(t, io.EOF, err)
 	csv := eventsToCsv(ew.s)
-	require.Equal(t, asdfNoCombo, csv)
+	require.Equal(t, asdfTestEvents, csv)
+}
+
+func Test_manInTheMiddle_asdf_ComboButNoMatch(t *testing.T) {
+	ew := writeToSlice{}
+	er, err := NewReadFromSlice(asdfTestEvents)
+	require.Nil(t, err)
+	allCombos := []Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+	}
+	err = manInTheMiddle(er, &ew, allCombos)
+	require.ErrorIs(t, io.EOF, err)
+	csv := eventsToCsv(ew.s)
+	require.Equal(t, asdfTestEvents, csv)
 }

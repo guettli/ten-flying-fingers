@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -391,6 +393,9 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 	for {
 		evP, err := er.ReadOne()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				buffer.FlushBuffer()
+			}
 			return err
 		}
 		if evP.Type != evdev.EV_KEY {
@@ -448,13 +453,21 @@ func (b *Buffer) Len() int {
 
 // The buffered events don't match a combo.
 // Write out the buffered events and the current event.
-func (b *Buffer) FlushBuffer(ev Event) error {
+func (b *Buffer) FlushBuffer() error {
 	for _, bufEvent := range b.buf {
 		if err := b.WriteEvent(bufEvent); err != nil {
 			return err
 		}
 	}
 	b.buf = nil
+	return nil
+}
+
+func (b *Buffer) FlushBufferAndWriteEvent(ev Event) error {
+	err := b.FlushBuffer()
+	if err != nil {
+		return err
+	}
 	return b.WriteEvent(ev)
 }
 
@@ -487,7 +500,7 @@ func (b *Buffer) HandleUpChar(
 				// short overlap. This seems to be two characters
 				// after each other, not a combo.
 				// Write out all buffered events.
-				return nil, b.FlushBuffer(ev)
+				return nil, b.FlushBufferAndWriteEvent(ev)
 			}
 
 			// All keys of this combo got pressed.
@@ -554,7 +567,7 @@ func (b *Buffer) HandleDownChar(
 		}
 		// combo was not finished. Write out buffer and
 		// reset combos to allCombos.
-		return nil, b.FlushBuffer(ev)
+		return nil, b.FlushBufferAndWriteEvent(ev)
 	}
 	// At least one Combo is active.
 	b.buf = append(b.buf, ev)
