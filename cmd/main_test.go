@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"testing"
 
@@ -30,7 +29,6 @@ func (rfs *readFromSlice) ReadOne() (*Event, error) {
 	}
 	ev := rfs.s[0]
 	rfs.s = rfs.s[1:]
-	fmt.Printf("ReadOne %s len: %d\n", eventToCsvLine(ev), len(rfs.s))
 	return &ev, nil
 }
 
@@ -106,4 +104,28 @@ func Test_manInTheMiddle_asdf_ComboButNoMatch(t *testing.T) {
 	require.ErrorIs(t, io.EOF, err)
 	csv := eventsToCsv(ew.s)
 	require.Equal(t, asdfTestEvents, csv)
+}
+
+var afComboTestString = `1712519053;827714;EV_KEY;KEY_F;down
+1712519053;849844;EV_KEY;KEY_A;down
+1712519054;320867;EV_KEY;KEY_A;up
+1712519054;321153;EV_KEY;KEY_F;up
+`
+
+func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
+	ew := writeToSlice{}
+	er, err := NewReadFromSlice(afComboTestString)
+	require.Nil(t, err)
+	allCombos := []Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+	}
+	err = manInTheMiddle(er, &ew, allCombos)
+	require.ErrorIs(t, io.EOF, err)
+	csv := eventsToCsv(ew.s)
+	require.Equal(t, `1712519053;827714;EV_KEY;KEY_X;down
+1712519054;321153;EV_KEY;KEY_X;up
+`, csv)
 }

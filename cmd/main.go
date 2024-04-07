@@ -490,6 +490,7 @@ func (b *Buffer) HandleUpChar(
 		}
 	}
 	if downEvent == nil {
+		panic("no down?")
 		// No corresponding downEvent. Write it out.
 		return combos, b.WriteEvent(ev)
 	}
@@ -497,6 +498,7 @@ func (b *Buffer) HandleUpChar(
 		if len(combo.Keys) == 0 {
 			lastEvent := b.buf[len(b.buf)-1]
 			if timeSub(ev, lastEvent) < 50*time.Millisecond {
+				panic("no short")
 				// short overlap. This seems to be two characters
 				// after each other, not a combo.
 				// Write out all buffered events.
@@ -513,6 +515,7 @@ func (b *Buffer) HandleUpChar(
 		}
 	}
 	// no combo has matched. Write event to buffer
+	panic("no match???")
 	b.buf = append(b.buf, ev)
 	return combos, nil
 }
@@ -553,13 +556,15 @@ func (b *Buffer) HandleDownChar(
 		for k := range combo.Keys {
 			if combo.Keys[k] == ev.Code {
 				// reduce active combos
-				combo.Keys = slices.Delete(combo.Keys, k, k)
+				combo.Keys = slices.Delete(combo.Keys, k, k+1)
 				openCombos = append(openCombos, combo)
+				fmt.Printf("down-char matches combo, reduced key %s len: %d\n", eventToCsvLine(ev), len(combo.Keys))
 				break
 			}
 		}
 	}
 	if len(openCombos) == 0 {
+		panic("........")
 		// No combo is matched.
 		if b.Len() == 0 {
 			// No combo was active. Write out event
