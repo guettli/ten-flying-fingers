@@ -149,7 +149,7 @@ func findDev() (string, error) {
 
 type eventOfPath struct {
 	path  string
-	event *evdev.InputEvent
+	event *Event
 }
 
 func readEvents(dev *evdev.InputDevice, path string, c chan eventOfPath) {
@@ -359,23 +359,23 @@ func mitm(sourceDev *evdev.InputDevice) error {
 		return err
 	}
 	defer outDev.Close()
-	return mitmCharReaderWriter(sourceDev, outDev)
-}
-
-type CharReader interface {
-	ReadOne() (*evdev.InputEvent, error)
-}
-type CharWriter interface {
-	WriteOne(event *evdev.InputEvent) error
-}
-
-func mitmCharReaderWriter(cr CharReader, cw CharWriter) error {
 	allCombos := []Combo{
 		{
 			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
+	return manInTheMiddle(sourceDev, outDev, allCombos)
+}
+
+type EventReader interface {
+	ReadOne() (*Event, error)
+}
+type EventWriter interface {
+	WriteOne(event *Event) error
+}
+
+func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 	maxLength := 0
 	for i := range allCombos {
 		l := len(allCombos[i].Keys)
@@ -386,24 +386,24 @@ func mitmCharReaderWriter(cr CharReader, cw CharWriter) error {
 	if maxLength == 0 {
 		return fmt.Errorf("No combo contains keys")
 	}
-	buffer := NewBuffer(maxLength)
+	buffer := NewBuffer(maxLength, ew)
 	combos := CopyCombos(allCombos)
 	for {
-		evP, err := cr.ReadOne()
+		evP, err := er.ReadOne()
 		if err != nil {
 			return err
 		}
-		if evP.Code != evdev.EV_KEY {
-			err = cw.WriteOne(evP)
+		if evP.Type != evdev.EV_KEY {
+			err = ew.WriteOne(evP)
 			if err != nil {
 				return err
 			}
 		}
 		switch evP.Value {
 		case UP:
-			combos, err = buffer.HandleUpChar(Event(*evP), combos)
+			combos, err = buffer.HandleUpChar(*evP, combos)
 		case DOWN:
-			combos, err = buffer.HandleDownChar(Event(*evP), combos)
+			combos, err = buffer.HandleDownChar(*evP, combos)
 		default:
 			return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
 		}
@@ -416,20 +416,21 @@ func mitmCharReaderWriter(cr CharReader, cw CharWriter) error {
 	}
 }
 
-func NewBuffer(maxLength int) *Buffer {
-	b := Buffer{}
+func NewBuffer(maxLength int, ew EventWriter) *Buffer {
+	b := Buffer{
+		outDev: ew,
+	}
 	b.buf = make([]Event, 0, maxLength)
 	return &b
 }
 
 type Buffer struct {
 	buf    []Event
-	outDev evdev.InputDevice
+	outDev EventWriter
 }
 
 func (b *Buffer) WriteEvent(ev Event) error {
-	inputEvent := evdev.InputEvent(ev)
-	return b.outDev.WriteOne(&inputEvent)
+	return b.outDev.WriteOne(&ev)
 }
 
 func (b *Buffer) ContainsKey(key KeyCode) bool {
@@ -532,6 +533,7 @@ func (b *Buffer) HandleDownChar(
 	combosOut []Combo,
 	err error,
 ) {
+	fmt.Printf("down %s\n", eventToCsvLine(ev))
 	var openCombos []Combo
 	// Does the current event match to a combo?
 	for _, combo := range combos {
@@ -554,7 +556,6 @@ func (b *Buffer) HandleDownChar(
 		// reset combos to allCombos.
 		return nil, b.FlushBuffer(ev)
 	}
-
 	// At least one Combo is active.
 	b.buf = append(b.buf, ev)
 	return openCombos, nil
@@ -576,20 +577,8 @@ func csv(sourceDev *evdev.InputDevice) error {
 			continue
 		}
 
-		value := ""
-		switch ev.Value {
-		case DOWN:
-			value = "down"
-		case UP:
-			value = "up"
-		case REPEAT:
-			value = "repeat"
-		default:
-			value = fmt.Sprint(ev.Value)
-		}
-		fmt.Printf("%d;%d;%s;%s;%s\n", ev.Time.Sec, ev.Time.Usec,
-			ev.TypeName(), ev.CodeName(),
-			value)
+		line := eventToCsvLine(*ev)
+		fmt.Print(line)
 	}
 }
 
@@ -602,7 +591,7 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 	}
 	fmt.Printf("Grabbing %s\n", targetName)
 	fmt.Printf("Hold `x` for 1 second to exit.\n")
-	prevEvent := evdev.InputEvent{
+	prevEvent := Event{
 		Time:  timeToSyscallTimeval(time.Now()),
 		Type:  evdev.EV_KEY,
 		Code:  evdev.KEY_SPACE,
@@ -689,7 +678,7 @@ func syscallTimevalToTime(tv syscall.Timeval) time.Time {
 }
 
 type ReadResult struct {
-	event *evdev.InputEvent
+	event *Event
 	err   error
 }
 type Source struct {
@@ -704,7 +693,7 @@ func (s *Source) readAndWriteForever() {
 	}
 }
 
-func (s *Source) getOneEventOrTimeout(timeout time.Duration) (ev *evdev.InputEvent, timedOut bool, err error) {
+func (s *Source) getOneEventOrTimeout(timeout time.Duration) (ev *Event, timedOut bool, err error) {
 	select {
 	case readResult := <-s.eventChannel:
 		return readResult.event, false, readResult.err
@@ -719,7 +708,7 @@ var shortKeyNames = map[string]string{
 	"rightshift": " ⇧",
 }
 
-func eventKeyToString(ev *evdev.InputEvent) (string, error) {
+func eventKeyToString(ev *Event) (string, error) {
 	if ev.Type != evdev.EV_KEY {
 		return "", fmt.Errorf("need a EV_KEY event. Got %s", ev.String())
 	}
@@ -744,4 +733,45 @@ func Map[T any, S any](t []T, f func(T) S) []S {
 		ret = append(ret, f(t[i]))
 	}
 	return ret
+}
+
+func csvToSlice(csvString string) ([]Event, error) {
+	lines := strings.Split(csvString, "\n")
+	s := make([]Event, 0, len(lines))
+	for _, line := range lines {
+		if line == "" || string(line[0]) == "#" {
+			continue
+		}
+		ev, err := lineToEvent(line)
+		if err != nil {
+			return nil, err
+		}
+		s = append(s, ev)
+	}
+	return s, nil
+}
+
+func eventToCsvLine(ev Event) string {
+	value := ""
+	switch ev.Value {
+	case DOWN:
+		value = "down"
+	case UP:
+		value = "up"
+	case REPEAT:
+		value = "repeat"
+	default:
+		value = fmt.Sprint(ev.Value)
+	}
+	return fmt.Sprintf("%d;%d;%s;%s;%s\n", ev.Time.Sec, ev.Time.Usec,
+		ev.TypeName(), ev.CodeName(),
+		value)
+}
+
+func eventsToCsv(s []Event) string {
+	csv := make([]string, 0, len(s))
+	for _, ev := range s {
+		csv = append(csv, eventToCsvLine(ev))
+	}
+	return strings.Join(csv, "")
 }
