@@ -339,15 +339,19 @@ type Combo struct {
 	OutKeys []KeyCode
 }
 
-func CopyCombos(combos []Combo) []Combo {
-	newCombos := make([]Combo, 0, len(combos))
-	for i := range combos {
-		newCombos = append(newCombos, Combo{
-			Keys:    slices.Clone(combos[i].Keys),
-			OutKeys: slices.Clone(combos[i].OutKeys),
-		})
+func (c *Combo) matches(ev Event) bool {
+	for k := range c.Keys {
+		if c.Keys[k] == ev.Code {
+			return true
+		}
 	}
-	return newCombos
+	return false
+}
+
+type partialCombo struct {
+	combo        *Combo
+	seenDownKeys []evdev.EvCode
+	seenUpKeys   []evdev.EvCode
 }
 
 // Man in the Middle.
@@ -389,7 +393,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 		return fmt.Errorf("No combo contains keys")
 	}
 	buffer := NewBuffer(maxLength, ew)
-	combos := CopyCombos(allCombos)
+	var partialCombos []partialCombo
 	for {
 		evP, err := er.ReadOne()
 		if err != nil {
@@ -406,17 +410,15 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 		}
 		switch evP.Value {
 		case UP:
-			combos, err = buffer.HandleUpChar(*evP, combos)
+			partialCombos, err = buffer.HandleUpChar(*evP, allCombos, partialCombos)
 		case DOWN:
-			combos, err = buffer.HandleDownChar(*evP, combos)
+			partialCombos, err = buffer.HandleDownChar(*evP, allCombos, partialCombos)
 		default:
 			return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
 		}
+		fmt.Printf("partialCombos %+v\n", partialCombos)
 		if err != nil {
 			return err
-		}
-		if len(combos) == 0 {
-			combos = CopyCombos(allCombos)
 		}
 	}
 }
@@ -474,13 +476,17 @@ func (b *Buffer) FlushBufferAndWriteEvent(ev Event) error {
 func (b *Buffer) HandleUpChar(
 	ev Event,
 	combos []Combo,
+	partialCombos []partialCombo,
 ) (
-	combosOut []Combo,
+	newPartpartialCombos []partialCombo,
 	err error,
 ) {
 	if b.Len() == 0 {
+		if len(partialCombos) != 0 {
+			panic(fmt.Sprintf("I am confused. Buffer is empty, and there are partialCombos: %+v", partialCombos))
+		}
 		// no Combo active. Write event, return
-		return combos, b.WriteEvent(ev)
+		return nil, b.WriteEvent(ev)
 	}
 	var downEvent *Event
 	for i := range b.buf {
@@ -490,23 +496,43 @@ func (b *Buffer) HandleUpChar(
 		}
 	}
 	if downEvent == nil {
-		panic("no down?")
 		// No corresponding downEvent. Write it out.
-		return combos, b.WriteEvent(ev)
+		return partialCombos, b.WriteEvent(ev)
 	}
-	for _, combo := range combos {
-		if len(combo.Keys) == 0 {
-			lastEvent := b.buf[len(b.buf)-1]
-			if timeSub(ev, lastEvent) < 50*time.Millisecond {
-				panic("no short")
+	for i := range partialCombos {
+		pc := &partialCombos[i]
+		if !pc.combo.matches(ev) {
+			panic("confused. The event does not correspond to a partialCombo")
+		}
+		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
+		if len(pc.seenUpKeys) == len(pc.combo.Keys) {
+			// The final up-Key arrived. Time to execute combo?
+			// Combo or overlap? Get timedelta between last down event, and first up event.
+			var firstUp *Event
+			for i := range b.buf {
+				if b.buf[i].Value == UP {
+					firstUp = &b.buf[i]
+					break
+				}
+			}
+			var latestDown *Event
+			for i := range b.buf {
+				e := &b.buf[len(b.buf)-1-i]
+				if e.Value == DOWN {
+					latestDown = e
+					break
+				}
+			}
+
+			delta := timeSub(*firstUp, *latestDown)
+			if delta < 50*time.Millisecond {
 				// short overlap. This seems to be two characters
 				// after each other, not a combo.
 				// Write out all buffered events.
 				return nil, b.FlushBufferAndWriteEvent(ev)
 			}
-
 			// All keys of this combo got pressed.
-			err := b.WriteCombo(combo)
+			err := b.WriteCombo(*pc.combo, firstUp.Time)
 			if err != nil {
 				return nil, err
 			}
@@ -514,16 +540,15 @@ func (b *Buffer) HandleUpChar(
 			return nil, nil
 		}
 	}
-	// no combo has matched. Write event to buffer
-	panic("no match???")
+	// no combo was finished. Write event to buffer
 	b.buf = append(b.buf, ev)
-	return combos, nil
+	return partialCombos, nil
 }
 
-func (b *Buffer) WriteCombo(combo Combo) error {
+func (b *Buffer) WriteCombo(combo Combo, time syscall.Timeval) error {
 	for i := range combo.OutKeys {
 		if err := b.WriteEvent(Event{
-			Time:  timeToSyscallTimeval(time.Now()),
+			Time:  time,
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(combo.OutKeys[i]),
 			Value: DOWN,
@@ -531,7 +556,7 @@ func (b *Buffer) WriteCombo(combo Combo) error {
 			return err
 		}
 		if err := b.WriteEvent(Event{
-			Time:  timeToSyscallTimeval(time.Now()),
+			Time:  time,
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(combo.OutKeys[i]),
 			Value: UP,
@@ -545,38 +570,57 @@ func (b *Buffer) WriteCombo(combo Combo) error {
 func (b *Buffer) HandleDownChar(
 	ev Event,
 	combos []Combo,
+	partialCombos []partialCombo,
 ) (
-	combosOut []Combo,
+	newPartialCombos []partialCombo,
 	err error,
 ) {
 	fmt.Printf("down %s\n", eventToCsvLine(ev))
-	var openCombos []Combo
-	// Does the current event match to a combo?
+
+	// Filter the existing open partialCombos
+	for i := range partialCombos {
+		pc := &partialCombos[i]
+		if pc.combo.matches(ev) {
+			pc.seenDownKeys = append(pc.seenDownKeys, ev.Code)
+			newPartialCombos = append(newPartialCombos, *pc)
+		}
+	}
+
+	// Does this key start a new combo?
 	for _, combo := range combos {
-		for k := range combo.Keys {
-			if combo.Keys[k] == ev.Code {
-				// reduce active combos
-				combo.Keys = slices.Delete(combo.Keys, k, k+1)
-				openCombos = append(openCombos, combo)
-				fmt.Printf("down-char matches combo, reduced key %s len: %d\n", eventToCsvLine(ev), len(combo.Keys))
+		// Skip this combo, if it is already active
+		skip := false
+		for _, pc := range newPartialCombos {
+			if slices.Equal(pc.combo.Keys, combo.Keys) {
+				skip = true
 				break
 			}
 		}
+		if skip {
+			continue
+		}
+		if !combo.matches(ev) {
+			continue
+		}
+		pc := partialCombo{
+			combo:        &combo,
+			seenDownKeys: []evdev.EvCode{ev.Code},
+		}
+		newPartialCombos = append(newPartialCombos, pc)
 	}
-	if len(openCombos) == 0 {
-		panic("........")
+	if len(newPartialCombos) == 0 {
 		// No combo is matched.
 		if b.Len() == 0 {
 			// No combo was active. Write out event
-			return combos, b.WriteEvent(ev)
+			return newPartialCombos, b.WriteEvent(ev)
 		}
 		// combo was not finished. Write out buffer and
-		// reset combos to allCombos.
+		// reset partialCombos.
 		return nil, b.FlushBufferAndWriteEvent(ev)
 	}
 	// At least one Combo is active.
 	b.buf = append(b.buf, ev)
-	return openCombos, nil
+	return newPartialCombos, nil
 }
 
 func csv(sourceDev *evdev.InputDevice) error {
@@ -652,9 +696,6 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 			ev.Value == UP {
 			fmt.Println("exit")
 			break
-		}
-		if err != nil {
-			return err
 		}
 		var s string
 		switch ev.Type {

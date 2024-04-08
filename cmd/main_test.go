@@ -125,7 +125,7 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 	err = manInTheMiddle(er, &ew, allCombos)
 	require.ErrorIs(t, io.EOF, err)
 	csv := eventsToCsv(ew.s)
-	require.Equal(t, `1712519053;827714;EV_KEY;KEY_X;down
-1712519054;321153;EV_KEY;KEY_X;up
+	require.Equal(t, `1712519054;320867;EV_KEY;KEY_X;down
+1712519054;320867;EV_KEY;KEY_X;up
 `, csv)
 }
