@@ -182,6 +182,22 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			X-up
 			`,
 		},
+		{
+			// short overlap between F-down and A-up.
+			// This is A followed by F, not a combo.
+			`
+			1712519053;827714;EV_KEY;KEY_A;down
+			1712519054;320840;EV_KEY;KEY_F;down
+			1712519054;320860;EV_KEY;KEY_A;up
+			1712519054;321153;EV_KEY;KEY_F;up
+			`,
+			`
+			A-down
+			F-down
+			A-up
+			F-up
+			`,
+		},
 	} {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(tt.input)
