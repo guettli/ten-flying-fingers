@@ -140,7 +140,6 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
-	ew := writeToSlice{}
 	allCombos := []Combo{
 		{
 			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
@@ -151,6 +150,26 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 		input          string
 		expectedOutput string
 	}{
+		{
+			`
+			1712519053;127714;EV_KEY;KEY_B;down
+			1712519053;149844;EV_KEY;KEY_B;up
+			1712519053;827714;EV_KEY;KEY_F;down
+			1712519053;849844;EV_KEY;KEY_A;down
+			1712519054;320867;EV_KEY;KEY_A;up
+			1712519054;321153;EV_KEY;KEY_F;up
+			1712519055;127714;EV_KEY;KEY_C;down
+			1712519055;149844;EV_KEY;KEY_C;up
+			`,
+			`
+			B-down
+			B-up
+			X-down
+			X-up
+			C-down
+			C-up
+			`,
+		},
 		{
 			`
 			1712519053;827714;EV_KEY;KEY_F;down
@@ -164,6 +183,7 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			`,
 		},
 	} {
+		ew := writeToSlice{}
 		er, err := NewReadFromSlice(tt.input)
 		require.Nil(t, err)
 		err = manInTheMiddle(er, &ew, allCombos)
