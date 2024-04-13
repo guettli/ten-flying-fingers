@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"io"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/holoplot/go-evdev"
@@ -15,6 +18,51 @@ type writeToSlice struct {
 func (wts *writeToSlice) WriteOne(ev *evdev.InputEvent) error {
 	wts.s = append(wts.s, *ev)
 	return nil
+}
+
+func (wts *writeToSlice) requireEqual(t *testing.T, expectedShort string) {
+	t.Helper()
+	actualShort, err := csvToShortCsv(eventsToCsv(wts.s))
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	var e []string
+	for _, line := range strings.Split(expectedShort, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		e = append(e, line)
+
+	}
+	expectedShort = strings.Join(e, "\n")
+	require.Equal(t, expectedShort, actualShort)
+}
+
+func csvToShortCsv(csv string) (string, error) {
+	var e []string
+	for _, line := range strings.Split(csv, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		line, err := csvLineToShortLine(line)
+		if err != nil {
+			return "", err
+		}
+		e = append(e, line)
+	}
+	return strings.Join(e, "\n"), nil
+}
+
+var csvLineToShortLineRegex = regexp.MustCompile(`^\d+;\d+;EV_KEY;KEY_(\w+);(\w+)$`)
+
+func csvLineToShortLine(csvLine string) (string, error) {
+	matches := csvLineToShortLineRegex.FindStringSubmatch(csvLine)
+	if matches == nil || len(matches) != 3 {
+		return "", fmt.Errorf("failed to parse csvLine %s %+v", csvLine, matches)
+	}
+	return fmt.Sprintf("%s-%s", matches[1], matches[2]), nil
 }
 
 var _ = EventWriter(&writeToSlice{})
@@ -46,24 +94,6 @@ func NewReadFromSlice(csvString string) (*readFromSlice, error) {
 
 var _ = EventReader(&readFromSlice{})
 
-var asCombo = `1711354959;655837;EV_KEY;KEY_A;down
-1711354959;815829;EV_KEY;KEY_A;up
-1711354959;999756;EV_KEY;KEY_S;down
-1711354960;127830;EV_KEY;KEY_S;up
-1711354960;591917;EV_KEY;KEY_S;down
-1711354960;711880;EV_KEY;KEY_S;up
-1711354960;887889;EV_KEY;KEY_A;down
-1711354961;39896;EV_KEY;KEY_A;up
-1711354962;536044;EV_KEY;KEY_A;down
-1711354962;591749;EV_KEY;KEY_S;down
-1711354962;647719;EV_KEY;KEY_A;up
-1711354962;695617;EV_KEY;KEY_S;up
-1711354963;928070;EV_KEY;KEY_A;down
-1711354963;935975;EV_KEY;KEY_S;down
-1711354964;327860;EV_KEY;KEY_S;up
-1711354964;359906;EV_KEY;KEY_A;up
-`
-
 var asdfTestEvents = `1712518531;862966;EV_KEY;KEY_A;down
 1712518532;22233;EV_KEY;KEY_A;up
 1712518532;478346;EV_KEY;KEY_S;down
@@ -74,58 +104,70 @@ var asdfTestEvents = `1712518531;862966;EV_KEY;KEY_A;down
 1712518534;116984;EV_KEY;KEY_F;up
 `
 
-func Test_manInTheMiddle_asdf_noMatch(t *testing.T) {
-	ew := writeToSlice{}
-	er, err := NewReadFromSlice(asdfTestEvents)
-	require.Nil(t, err)
-	allCombos := []Combo{
+func Test_manInTheMiddle_noMatch(t *testing.T) {
+	for _, allCombos := range [][]Combo{
 		{
-			Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
-			OutKeys: []KeyCode{evdev.KEY_X},
+			{
+				Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
+				OutKeys: []KeyCode{evdev.KEY_X},
+			},
 		},
-	}
-	err = manInTheMiddle(er, &ew, allCombos)
-	require.ErrorIs(t, io.EOF, err)
-	csv := eventsToCsv(ew.s)
-	require.Equal(t, asdfTestEvents, csv)
-}
-
-func Test_manInTheMiddle_asdf_ComboButNoMatch(t *testing.T) {
-	ew := writeToSlice{}
-	er, err := NewReadFromSlice(asdfTestEvents)
-	require.Nil(t, err)
-	allCombos := []Combo{
 		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-			OutKeys: []KeyCode{evdev.KEY_X},
+			{
+				Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+				OutKeys: []KeyCode{evdev.KEY_X},
+			},
 		},
+		{
+			{
+				Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
+				OutKeys: []KeyCode{evdev.KEY_X},
+			},
+			{
+				Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+				OutKeys: []KeyCode{evdev.KEY_X},
+			},
+		},
+	} {
+		ew := writeToSlice{}
+		er, err := NewReadFromSlice(asdfTestEvents)
+		require.Nil(t, err)
+		err = manInTheMiddle(er, &ew, allCombos)
+		require.ErrorIs(t, io.EOF, err)
+		csv := eventsToCsv(ew.s)
+		require.Equal(t, asdfTestEvents, csv)
 	}
-	err = manInTheMiddle(er, &ew, allCombos)
-	require.ErrorIs(t, io.EOF, err)
-	csv := eventsToCsv(ew.s)
-	require.Equal(t, asdfTestEvents, csv)
 }
-
-var afComboTestString = `1712519053;827714;EV_KEY;KEY_F;down
-1712519053;849844;EV_KEY;KEY_A;down
-1712519054;320867;EV_KEY;KEY_A;up
-1712519054;321153;EV_KEY;KEY_F;up
-`
 
 func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 	ew := writeToSlice{}
-	er, err := NewReadFromSlice(afComboTestString)
-	require.Nil(t, err)
 	allCombos := []Combo{
 		{
 			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
-	err = manInTheMiddle(er, &ew, allCombos)
-	require.ErrorIs(t, io.EOF, err)
-	csv := eventsToCsv(ew.s)
-	require.Equal(t, `1712519054;320867;EV_KEY;KEY_X;down
-1712519054;320867;EV_KEY;KEY_X;up
-`, csv)
+	for _, tt := range []struct {
+		input          string
+		expectedOutput string
+	}{
+		{
+			`
+			1712519053;827714;EV_KEY;KEY_F;down
+			1712519053;849844;EV_KEY;KEY_A;down
+			1712519054;320867;EV_KEY;KEY_A;up
+			1712519054;321153;EV_KEY;KEY_F;up
+			`,
+			`
+			X-down
+			X-up
+			`,
+		},
+	} {
+		er, err := NewReadFromSlice(tt.input)
+		require.Nil(t, err)
+		err = manInTheMiddle(er, &ew, allCombos)
+		require.ErrorIs(t, io.EOF, err)
+		ew.requireEqual(t, tt.expectedOutput)
+	}
 }

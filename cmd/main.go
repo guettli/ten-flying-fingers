@@ -798,6 +798,7 @@ func csvToSlice(csvString string) ([]Event, error) {
 	lines := strings.Split(csvString, "\n")
 	s := make([]Event, 0, len(lines))
 	for _, line := range lines {
+		line := strings.TrimSpace(line)
 		if line == "" || string(line[0]) == "#" {
 			continue
 		}
