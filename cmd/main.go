@@ -90,9 +90,14 @@ Usage:
 
      Create events from a csv file.
 
+  %s combos combos.yaml [ /dev/input/... ]
+
+     Run combos defined in combos.yaml
+
+
   Devices which look like a keyboard:
 %s
-`, os.Args[0], os.Args[0], os.Args[0], listDevices())
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], listDevices())
 }
 
 func findDev() (string, error) {
@@ -241,6 +246,22 @@ func myMain() error {
 		err := createEventsFromCsv(os.Args[2])
 		if err != nil {
 			fmt.Println(err.Error())
+		}
+		return nil
+	case "combos":
+		if len(os.Args) != 3 && len(os.Args) != 4 {
+			fmt.Println("Not enough arguments")
+			os.Exit(1)
+		}
+		sourceDev, err := getDevicePathFromArgsSlice(os.Args[3:len(os.Args)])
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		err = combos(os.Args[2], sourceDev)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
 		}
 		return nil
 	default:
@@ -834,4 +855,12 @@ func eventsToCsv(s []Event) string {
 		csv = append(csv, eventToCsvLine(ev))
 	}
 	return strings.Join(csv, "")
+}
+
+func combos(yamlFile string, dev *evdev.InputDevice) error {
+	_, err := LoadYamlFile(yamlFile)
+	if err != nil {
+		return err
+	}
+	return nil
 }
