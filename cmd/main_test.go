@@ -152,6 +152,16 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 	}{
 		{
 			`
+			1716752333;203961;EV_KEY;KEY_A;down
+			1716752333;327486;EV_KEY;KEY_A;up
+			`,
+			`
+			A-down
+			A-up
+			`,
+		},
+		{
+			`
 			1712519053;127714;EV_KEY;KEY_B;down
 			1712519053;149844;EV_KEY;KEY_B;up
 			1712519053;827714;EV_KEY;KEY_F;down
@@ -198,17 +208,6 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			F-up
 			`,
 		},
-
-		{
-			`
-			1716752333;203961;EV_KEY;KEY_A;down
-			1716752333;327486;EV_KEY;KEY_A;up
-			`,
-			`
-			A-down
-			A-up
-			`,
-		},
 	} {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(tt.input)
@@ -216,5 +215,6 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 		err = manInTheMiddle(er, &ew, allCombos)
 		require.ErrorIs(t, io.EOF, err)
 		ew.requireEqual(t, tt.expectedOutput)
+		panic(1)
 	}
 }

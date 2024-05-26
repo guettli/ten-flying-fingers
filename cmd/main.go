@@ -368,6 +368,27 @@ type partialCombo struct {
 	seenUpKeys   []evdev.EvCode
 }
 
+func (pc *partialCombo) String() string {
+	keys := make([]string, len(pc.combo.Keys))
+	for i, key := range pc.combo.Keys {
+		keys[i] = evdev.KEYToString[key]
+	}
+	outKeys := make([]string, len(pc.combo.OutKeys))
+	for i, key := range pc.combo.OutKeys {
+		outKeys[i] = evdev.KEYToString[key]
+	}
+	return fmt.Sprintf("[%s -> %s (seenDown %+v seenUp %+v)]", strings.Join(keys, " "), strings.Join(outKeys, " "),
+		pc.seenDownKeys, pc.seenUpKeys)
+}
+
+func partialCombosToString(partialCombos []partialCombo) string {
+	s := make([]string, len(partialCombos))
+	for i, pc := range partialCombos {
+		s[i] = pc.String()
+	}
+	return strings.Join(s, " - ")
+}
+
 type EventReader interface {
 	ReadOne() (*Event, error)
 }
@@ -411,7 +432,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 		default:
 			return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
 		}
-		fmt.Printf("partialCombos %+v\n", partialCombos)
+		fmt.Printf("partialCombos %s\n", partialCombosToString(partialCombos))
 		if err != nil {
 			return err
 		}
@@ -499,7 +520,7 @@ func (b *Buffer) HandleUpChar(
 	for i := range partialCombos {
 		pc := &partialCombos[i]
 		if !pc.combo.matches(ev) {
-			panic("confused. The event does not correspond to a partialCombo")
+			panic(fmt.Sprintf("confused. The event does not correspond to a partialCombo. %s", eventToCsvLine(ev)))
 		}
 		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
 		if len(pc.seenUpKeys) == len(pc.combo.Keys) {

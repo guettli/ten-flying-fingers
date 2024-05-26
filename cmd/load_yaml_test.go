@@ -70,6 +70,19 @@ func TestLoadYamlFromBytes_fail(t *testing.T) {
 		expected   string
 	}{
 		{
+			`combos:
+  - keys: f j
+  - outKeys: a b c
+`,
+			`empty list in 'outKeys' is not allowed.`,
+		},
+		{
+			`combos:
+  - outKeys: a b c
+`,
+			`empty list in 'keys' is not allowed.`,
+		},
+		{
 			`combos
   - keys: f j
   - outKeys: a b c

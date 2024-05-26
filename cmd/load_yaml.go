@@ -37,11 +37,18 @@ func LoadYamlFromBytes(yamlBytes []byte) ([]Combo, error) {
 	}
 	combos := make([]Combo, len(y.Combos))
 	for i, yamlCombo := range y.Combos {
+		if len(yamlCombo.Keys) == 0 {
+			return nil, fmt.Errorf("empty list in 'keys' is not allowed.")
+		}
 		keys, err := stringToKeyCodes(yamlCombo.Keys)
 		if err != nil {
 			return nil, err
 		}
 		combos[i].Keys = keys
+
+		if len(yamlCombo.OutKeys) == 0 {
+			return nil, fmt.Errorf("empty list in 'outKeys' is not allowed.")
+		}
 		keys, err = stringToKeyCodes(yamlCombo.OutKeys)
 		if err != nil {
 			return nil, err
