@@ -52,7 +52,7 @@ func LoadYamlFromBytes(yamlBytes []byte) ([]Combo, error) {
 }
 
 func stringToKeyCodes(str string) ([]KeyCode, error) {
-	words := strings.Split(str, " ")
+	words := strings.Fields(str)
 	codes := make([]KeyCode, len(words))
 	for i, word := range words {
 		keyCode, err := wordToKeyCode(word)

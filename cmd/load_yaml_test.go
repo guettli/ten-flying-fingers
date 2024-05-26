@@ -39,8 +39,8 @@ func TestLoadYamlFromBytes_ok(t *testing.T) {
 	}{
 		{
 			`combos:
-  - keys: f j
-    outKeys: a b c
+  - keys: f  KEY_J
+    outKeys: a b  KEY_C
 `,
 			[]Combo{
 				{
