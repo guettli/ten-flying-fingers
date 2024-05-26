@@ -231,13 +231,6 @@ func myMain() error {
 			fmt.Println(err.Error())
 		}
 		return nil
-	case "mitm":
-		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		return mitm(sourceDev)
 	case "create-events-from-csv":
 		if len(os.Args) != 3 {
 			usage()
@@ -375,26 +368,6 @@ type partialCombo struct {
 	seenUpKeys   []evdev.EvCode
 }
 
-// Man in the Middle.
-func mitm(sourceDev *evdev.InputDevice) error {
-	err := sourceDev.Grab()
-	if err != nil {
-		return err
-	}
-	outDev, err := evdev.CloneDevice("clone", sourceDev)
-	if err != nil {
-		return err
-	}
-	defer outDev.Close()
-	allCombos := []Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-	}
-	return manInTheMiddle(sourceDev, outDev, allCombos)
-}
-
 type EventReader interface {
 	ReadOne() (*Event, error)
 }
@@ -428,6 +401,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 			if err != nil {
 				return err
 			}
+			continue
 		}
 		switch evP.Value {
 		case UP:
@@ -502,6 +476,8 @@ func (b *Buffer) HandleUpChar(
 	newPartpartialCombos []partialCombo,
 	err error,
 ) {
+	fmt.Printf("up %s\n", eventToCsvLine(ev))
+
 	if b.Len() == 0 {
 		if len(partialCombos) != 0 {
 			panic(fmt.Sprintf("I am confused. Buffer is empty, and there are partialCombos: %+v", partialCombos))
@@ -858,9 +834,18 @@ func eventsToCsv(s []Event) string {
 }
 
 func combos(yamlFile string, dev *evdev.InputDevice) error {
-	_, err := LoadYamlFile(yamlFile)
+	combos, err := LoadYamlFile(yamlFile)
 	if err != nil {
 		return err
 	}
-	return nil
+	err = dev.Grab()
+	if err != nil {
+		return err
+	}
+	outDev, err := evdev.CloneDevice("clone", dev)
+	if err != nil {
+		return err
+	}
+	defer outDev.Close()
+	return manInTheMiddle(dev, outDev, combos)
 }

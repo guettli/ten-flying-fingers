@@ -198,6 +198,17 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			F-up
 			`,
 		},
+
+		{
+			`
+			1716752333;203961;EV_KEY;KEY_A;down
+			1716752333;327486;EV_KEY;KEY_A;up
+			`,
+			`
+			A-down
+			A-up
+			`,
+		},
 	} {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(tt.input)
