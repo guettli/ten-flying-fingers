@@ -31,3 +31,61 @@ func Test_runeToKeyCode(t *testing.T) {
 		require.Equal(t, tt.expectedKeyCode, got)
 	}
 }
+
+func TestLoadYamlFromBytes_ok(t *testing.T) {
+	tests := []struct {
+		yamlString string
+		expected   []Combo
+	}{
+		{
+			`combos:
+  - keys: f j
+    outKeys: a b c
+`,
+			[]Combo{
+				{
+					Keys: []evdev.EvCode{
+						evdev.KEY_F,
+						evdev.KEY_J,
+					},
+					OutKeys: []evdev.EvCode{
+						evdev.KEY_A,
+						evdev.KEY_B,
+						evdev.KEY_C,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		actual, err := LoadYamlFromBytes([]byte(tt.yamlString))
+		require.Nil(t, err)
+		require.Equal(t, tt.expected, actual)
+	}
+}
+
+func TestLoadYamlFromBytes_fail(t *testing.T) {
+	tests := []struct {
+		yamlString string
+		expected   string
+	}{
+		{
+			`combos
+  - keys: f j
+  - outKeys: a b c
+`,
+			"mapping values are not allowed in this context",
+		},
+		{
+			`combos:
+  - keys: f j
+    outKeys: a b KEY_not_existing
+`,
+			`failed to get key "KEY_not_existing"`,
+		},
+	}
+	for _, tt := range tests {
+		_, err := LoadYamlFromBytes([]byte(tt.yamlString))
+		require.ErrorContains(t, err, tt.expected)
+	}
+}

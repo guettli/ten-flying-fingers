@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"unicode"
 
 	"github.com/holoplot/go-evdev"
@@ -21,13 +22,46 @@ func LoadYamlFile(yamlFile string) ([]Combo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read yaml config from %q: %w", yamlFile, err)
 	}
-	y := Yaml{}
-	err = yaml.Unmarshal(data, &y)
+	combos, err := LoadYamlFromBytes(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %q: %w", yamlFile, err)
 	}
-	//_ := make([]Combo, 0, len(y.Combos))
-	return nil, nil
+	return combos, nil
+}
+
+func LoadYamlFromBytes(yamlBytes []byte) ([]Combo, error) {
+	y := Yaml{}
+	err := yaml.Unmarshal(yamlBytes, &y)
+	if err != nil {
+		return nil, err
+	}
+	combos := make([]Combo, len(y.Combos))
+	for i, yamlCombo := range y.Combos {
+		keys, err := stringToKeyCodes(yamlCombo.Keys)
+		if err != nil {
+			return nil, err
+		}
+		combos[i].Keys = keys
+		keys, err = stringToKeyCodes(yamlCombo.OutKeys)
+		if err != nil {
+			return nil, err
+		}
+		combos[i].OutKeys = keys
+	}
+	return combos, nil
+}
+
+func stringToKeyCodes(str string) ([]KeyCode, error) {
+	words := strings.Split(str, " ")
+	codes := make([]KeyCode, len(words))
+	for i, word := range words {
+		keyCode, err := wordToKeyCode(word)
+		if err != nil {
+			return nil, err
+		}
+		codes[i] = keyCode
+	}
+	return codes, nil
 }
 
 func wordToKeyCode(word string) (KeyCode, error) {
@@ -35,7 +69,11 @@ func wordToKeyCode(word string) (KeyCode, error) {
 	if len(runes) == 1 {
 		return runeToKeyCode(runes[0])
 	}
-	return 0, nil
+	key, ok := evdev.KEYFromString[word]
+	if !ok {
+		return 0, fmt.Errorf("failed to get key %q: %w", word, UnknownKeyErr)
+	}
+	return key, nil
 }
 
 var (
