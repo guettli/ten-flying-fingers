@@ -129,7 +129,7 @@ func findDev() (string, error) {
 		go readEvents(dev, path, c)
 	}
 	if foundDevices == 0 {
-		return "", fmt.Errorf("No device found")
+		return "", fmt.Errorf("No device found (try `sudo`, since root permissions are needed)")
 	}
 	fmt.Println("Please use the device you want to use, now. Capturing events ....")
 	found := ""
@@ -242,16 +242,26 @@ func myMain() error {
 		}
 		return nil
 	case "combos":
-		if len(os.Args) != 3 && len(os.Args) != 4 {
+		var args []string
+		debug := false
+		for _, arg := range os.Args {
+			if arg == "--debug" || arg == "-d" {
+				debug = true
+				continue
+			}
+			args = append(args, arg)
+		}
+
+		if len(args) != 3 && len(args) != 4 {
 			fmt.Println("Not enough arguments")
 			os.Exit(1)
 		}
-		sourceDev, err := getDevicePathFromArgsSlice(os.Args[3:len(os.Args)])
+		sourceDev, err := getDevicePathFromArgsSlice(args[3:])
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		err = combos(os.Args[2], sourceDev)
+		err = combos(args[2], sourceDev, debug)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -377,8 +387,20 @@ func (pc *partialCombo) String() string {
 	for i, key := range pc.combo.OutKeys {
 		outKeys[i] = evdev.KEYToString[key]
 	}
-	return fmt.Sprintf("[%s -> %s (seenDown %+v seenUp %+v)]", strings.Join(keys, " "), strings.Join(outKeys, " "),
-		pc.seenDownKeys, pc.seenUpKeys)
+	var seenDown []string
+	for _, key := range pc.seenDownKeys {
+		seenDown = append(seenDown, evdev.KEYToString[key])
+	}
+	var seenUp []string
+	for _, key := range pc.seenUpKeys {
+		seenUp = append(seenUp, evdev.KEYToString[key])
+	}
+	return fmt.Sprintf("[%s -> %s (seenDown %q seenUp %q)]",
+		strings.Join(keys, " "),
+		strings.Join(outKeys, " "),
+		strings.Join(seenDown, " "),
+		strings.Join(seenUp, " "),
+	)
 }
 
 func partialCombosToString(partialCombos []partialCombo) string {
@@ -396,7 +418,7 @@ type EventWriter interface {
 	WriteOne(event *Event) error
 }
 
-func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
+func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo, debug bool) error {
 	maxLength := 0
 	for i := range allCombos {
 		l := len(allCombos[i].Keys)
@@ -409,34 +431,80 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo) error {
 	}
 	buffer := NewBuffer(maxLength, ew)
 	var partialCombos []partialCombo
-	for {
-		evP, err := er.ReadOne()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				buffer.FlushBuffer()
+
+	type eventAndErr struct {
+		evP *Event
+		err error
+	}
+	eventChannel := make(chan eventAndErr)
+	go func() {
+		for {
+			evP, err := er.ReadOne()
+			eventChannel <- eventAndErr{evP, err}
+			if err != nil {
+				return
 			}
-			return err
 		}
-		if evP.Type != evdev.EV_KEY {
-			err = ew.WriteOne(evP)
+	}()
+	for {
+		select {
+		case eventErr, ok := <-eventChannel:
+			if !ok {
+				panic("I don't expect this channel to get closed.")
+			}
+			err := eventErr.err
+			evP := eventErr.evP
+
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					err = errors.Join(err, buffer.FlushBuffer())
+				}
+				return err
+			}
+
+			partialCombos, err = manInTheMiddleInnerLoop(evP, ew, buffer, allCombos, partialCombos, debug)
 			if err != nil {
 				return err
 			}
-			continue
-		}
-		switch evP.Value {
-		case UP:
-			partialCombos, err = buffer.HandleUpChar(*evP, allCombos, partialCombos)
-		case DOWN:
-			partialCombos, err = buffer.HandleDownChar(*evP, allCombos, partialCombos)
-		default:
-			return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
-		}
-		fmt.Printf("partialCombos %s\n", partialCombosToString(partialCombos))
-		if err != nil {
-			return err
+		case <-time.After(100 * time.Millisecond):
+			partialCombos = nil
+			err := buffer.FlushBuffer()
+			if err != nil {
+				return err
+			}
+			if debug {
+				fmt.Printf(" timeout buffer %q (%d)\n", buffer.String(), buffer.Len())
+			}
 		}
 	}
+}
+
+func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, buffer *Buffer,
+	allCombos []Combo, partialCombos []partialCombo, debug bool,
+) ([]partialCombo, error) {
+	var err error
+	if evP.Type != evdev.EV_KEY {
+		err = ew.WriteOne(evP)
+		if err != nil {
+			return partialCombos, err
+		}
+		return partialCombos, nil
+	}
+	switch evP.Value {
+	case UP:
+		partialCombos, err = buffer.HandleUpChar(*evP, allCombos, partialCombos)
+	case DOWN:
+		partialCombos, err = buffer.HandleDownChar(*evP, allCombos, partialCombos)
+	default:
+		return partialCombos, fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
+	}
+	if debug {
+		fmt.Printf(" partialCombos %s. Buffer %q\n", partialCombosToString(partialCombos), buffer.String())
+	}
+	if err != nil {
+		return partialCombos, err
+	}
+	return partialCombos, nil
 }
 
 func NewBuffer(maxLength int, ew EventWriter) *Buffer {
@@ -469,6 +537,14 @@ func (b *Buffer) Len() int {
 	return len(b.buf)
 }
 
+func (b *Buffer) String() string {
+	var ret []string
+	for _, ev := range b.buf {
+		ret = append(ret, eventKeyToString(&ev))
+	}
+	return strings.Join(ret, ", ")
+}
+
 // The buffered events don't match a combo.
 // Write out the buffered events and the current event.
 func (b *Buffer) FlushBuffer() error {
@@ -497,7 +573,7 @@ func (b *Buffer) HandleUpChar(
 	newPartpartialCombos []partialCombo,
 	err error,
 ) {
-	fmt.Printf("up %s\n", eventToCsvLine(ev))
+	// fmt.Printf("up %s\n", eventToCsvLine(ev))
 
 	if b.Len() == 0 {
 		if len(partialCombos) != 0 {
@@ -593,7 +669,7 @@ func (b *Buffer) HandleDownChar(
 	newPartialCombos []partialCombo,
 	err error,
 ) {
-	fmt.Printf("down %s\n", eventToCsvLine(ev))
+	// fmt.Printf("down %s\n", eventToCsvLine(ev))
 
 	// Filter the existing open partialCombos
 	for i := range partialCombos {
@@ -718,10 +794,7 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 		var s string
 		switch ev.Type {
 		case evdev.EV_KEY:
-			s, err = eventKeyToString(ev)
-			if err != nil {
-				return err
-			}
+			s = eventKeyToString(ev)
 		default:
 			s = ev.String()
 		}
@@ -785,9 +858,9 @@ var shortKeyNames = map[string]string{
 	"rightshift": " ⇧",
 }
 
-func eventKeyToString(ev *Event) (string, error) {
+func eventKeyToString(ev *Event) string {
 	if ev.Type != evdev.EV_KEY {
-		return "", fmt.Errorf("need a EV_KEY event. Got %s", ev.String())
+		return fmt.Sprintf("[err: need a EV_KEY event. Got %s]", ev.String())
 	}
 	name := ev.CodeName()
 	name = strings.TrimPrefix(name, "KEY_")
@@ -797,11 +870,11 @@ func eventKeyToString(ev *Event) (string, error) {
 		name = short
 	}
 	if ev.Value > 2 {
-		return "", fmt.Errorf("ev.Value is unknown %d. %s", ev.Value, ev.String())
+		return fmt.Sprintf("ev.Value is unknown %d. %s", ev.Value, ev.String())
 	}
 
 	name = name + keyEventValueToString[ev.Value]
-	return name, nil
+	return name
 }
 
 func Map[T any, S any](t []T, f func(T) S) []S {
@@ -854,7 +927,7 @@ func eventsToCsv(s []Event) string {
 	return strings.Join(csv, "")
 }
 
-func combos(yamlFile string, dev *evdev.InputDevice) error {
+func combos(yamlFile string, dev *evdev.InputDevice, debug bool) error {
 	combos, err := LoadYamlFile(yamlFile)
 	if err != nil {
 		return err
@@ -868,5 +941,5 @@ func combos(yamlFile string, dev *evdev.InputDevice) error {
 		return err
 	}
 	defer outDev.Close()
-	return manInTheMiddle(dev, outDev, combos)
+	return manInTheMiddle(dev, outDev, combos, debug)
 }
