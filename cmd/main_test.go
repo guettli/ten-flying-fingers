@@ -133,7 +133,7 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 		er, err := NewReadFromSlice(asdfTestEvents)
 		require.Nil(t, err)
 		err = manInTheMiddle(er, &ew, allCombos, false)
-		require.ErrorIs(t, io.EOF, err)
+		require.ErrorIs(t, err, io.EOF)
 		csv := eventsToCsv(ew.s)
 		require.Equal(t, asdfTestEvents, csv)
 	}
