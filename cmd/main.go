@@ -465,13 +465,16 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo, debug boo
 			if err != nil {
 				return err
 			}
-		case <-time.After(1 * time.Second):
+		case <-time.After(120 * time.Millisecond):
+			// TODO: executing the combo only on upChar does not work.
+			// If you press a combo long, then you want the same experience as (for example)
+			// pressing pageUp long: You want the key to fire several times.
+			if debug && state.Len() > 0 {
+				fmt.Printf(" timeout state %q (%d)\n", state.String(), state.Len())
+			}
 			err := state.FlushBuffer()
 			if err != nil {
 				return err
-			}
-			if debug {
-				fmt.Printf(" timeout state %q (%d)\n", state.String(), state.Len())
 			}
 		}
 	}
@@ -482,6 +485,7 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 ) error {
 	var err error
 	if evP.Type != evdev.EV_KEY {
+		// fmt.Printf(" skipping %s\n", evP.String())
 		err = ew.WriteOne(evP)
 		if err != nil {
 			return err
@@ -520,7 +524,12 @@ type State struct {
 }
 
 func (state *State) WriteEvent(ev Event) error {
-	return state.outDev.WriteOne(&ev)
+	err := state.outDev.WriteOne(&ev)
+	return errors.Join(err, state.outDev.WriteOne(&Event{
+		Time: ev.Time,
+		Type: evdev.EV_SYN,
+		Code: evdev.SYN_REPORT,
+	}))
 }
 
 func (state *State) ContainsKey(key KeyCode) bool {
@@ -579,6 +588,8 @@ func (state *State) HandleUpChar(
 		// no Combo active. Write event, return
 		return state.FlushBufferAndWriteEvent(ev)
 	}
+
+	// find corresponding down-event
 	var downEvent *Event
 	for i := range state.buf {
 		if state.buf[i].Value == DOWN && state.buf[i].Code == ev.Code {
@@ -590,6 +601,7 @@ func (state *State) HandleUpChar(
 		// No corresponding downEvent. Write it out.
 		return state.FlushBufferAndWriteEvent(ev)
 	}
+
 	for i := range state.partialCombos {
 		pc := &state.partialCombos[i]
 		if !pc.combo.matches(ev) {
@@ -912,6 +924,9 @@ func eventToCsvLine(ev Event) string {
 func eventsToCsv(s []Event) string {
 	csv := make([]string, 0, len(s))
 	for _, ev := range s {
+		if ev.Type == evdev.EV_SYN {
+			continue
+		}
 		csv = append(csv, eventToCsvLine(ev))
 	}
 	return strings.Join(csv, "")
