@@ -665,12 +665,13 @@ func (state *State) HandleDownChar(
 ) error {
 	// fmt.Printf("down %s\n", eventToCsvLine(ev))
 
+	var newPartialCombos []partialCombo
 	// Filter the existing open partialCombos
 	for i := range state.partialCombos {
 		pc := &state.partialCombos[i]
 		if pc.combo.matches(ev) {
 			pc.seenDownKeys = append(pc.seenDownKeys, ev.Code)
-			state.partialCombos = append(state.partialCombos, *pc)
+			newPartialCombos = append(newPartialCombos, *pc)
 		}
 	}
 
@@ -678,7 +679,7 @@ func (state *State) HandleDownChar(
 	for _, combo := range combos {
 		// Skip this combo, if it is already active
 		skip := false
-		for _, pc := range state.partialCombos {
+		for _, pc := range newPartialCombos {
 			if slices.Equal(pc.combo.Keys, combo.Keys) {
 				skip = true
 				break
@@ -694,8 +695,9 @@ func (state *State) HandleDownChar(
 			combo:        &combo,
 			seenDownKeys: []evdev.EvCode{ev.Code},
 		}
-		state.partialCombos = append(state.partialCombos, pc)
+		newPartialCombos = append(newPartialCombos, pc)
 	}
+	state.partialCombos = newPartialCombos
 	if len(state.partialCombos) == 0 {
 		// No combo is matched.
 		return state.FlushBufferAndWriteEvent(ev)

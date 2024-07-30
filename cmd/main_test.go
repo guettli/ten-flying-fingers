@@ -105,30 +105,7 @@ var asdfTestEvents = `1712518531;862966;EV_KEY;KEY_A;down
 `
 
 func Test_manInTheMiddle_noMatch(t *testing.T) {
-	for _, allCombos := range [][]Combo{
-		{
-			{
-				Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
-				OutKeys: []KeyCode{evdev.KEY_X},
-			},
-		},
-		{
-			{
-				Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-				OutKeys: []KeyCode{evdev.KEY_X},
-			},
-		},
-		{
-			{
-				Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
-				OutKeys: []KeyCode{evdev.KEY_X},
-			},
-			{
-				Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-				OutKeys: []KeyCode{evdev.KEY_X},
-			},
-		},
-	} {
+	f := func(allCombos []Combo) {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(asdfTestEvents)
 		require.Nil(t, err)
@@ -137,6 +114,30 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 		csv := eventsToCsv(ew.s)
 		require.Equal(t, asdfTestEvents, csv)
 	}
+	f([]Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+	})
+
+	f([]Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+	})
+
+	f([]Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_G, evdev.KEY_H},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+	})
 }
 
 func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
@@ -213,7 +214,7 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 		er, err := NewReadFromSlice(tt.input)
 		require.Nil(t, err)
 		err = manInTheMiddle(er, &ew, allCombos, false)
-		require.ErrorIs(t, io.EOF, err)
+		require.ErrorIs(t, err, io.EOF)
 		ew.requireEqual(t, tt.expectedOutput)
 	}
 }
