@@ -147,22 +147,24 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
-	for _, tt := range []struct {
-		input          string
-		expectedOutput string
-	}{
-		{
-			`
+	f := func(input string, expectedOutput string) {
+		ew := writeToSlice{}
+		er, err := NewReadFromSlice(input)
+		require.Nil(t, err)
+		err = manInTheMiddle(er, &ew, allCombos, false)
+		require.ErrorIs(t, err, io.EOF)
+		ew.requireEqual(t, expectedOutput)
+	}
+	f(`
 			1716752333;203961;EV_KEY;KEY_A;down
 			1716752333;327486;EV_KEY;KEY_A;up
 			`,
-			`
+		`
 			A-down
 			A-up
 			`,
-		},
-		{
-			`
+	)
+	f(`
 			1712519053;127714;EV_KEY;KEY_B;down
 			1712519053;149844;EV_KEY;KEY_B;up
 			1712519053;827714;EV_KEY;KEY_F;down
@@ -172,49 +174,38 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			1712519055;127714;EV_KEY;KEY_C;down
 			1712519055;149844;EV_KEY;KEY_C;up
 			`,
-			`
+		`
 			B-down
 			B-up
 			X-down
 			X-up
 			C-down
 			C-up
-			`,
-		},
-		{
-			`
+			`)
+	f(`
 			1712519053;827714;EV_KEY;KEY_F;down
 			1712519053;849844;EV_KEY;KEY_A;down
 			1712519054;320867;EV_KEY;KEY_A;up
 			1712519054;321153;EV_KEY;KEY_F;up
 			`,
-			`
+		`
 			X-down
 			X-up
 			`,
-		},
-		{
-			// short overlap between F-down and A-up.
-			// This is A followed by F, not a combo.
-			`
+	)
+
+	// short overlap between F-down and A-up.
+	// This is A followed by F, not a combo.
+	f(`
 			1712519053;827714;EV_KEY;KEY_A;down
 			1712519054;320840;EV_KEY;KEY_F;down
 			1712519054;320860;EV_KEY;KEY_A;up
 			1712519054;321153;EV_KEY;KEY_F;up
 			`,
-			`
+		`
 			A-down
 			F-down
 			A-up
 			F-up
-			`,
-		},
-	} {
-		ew := writeToSlice{}
-		er, err := NewReadFromSlice(tt.input)
-		require.Nil(t, err)
-		err = manInTheMiddle(er, &ew, allCombos, false)
-		require.ErrorIs(t, err, io.EOF)
-		ew.requireEqual(t, tt.expectedOutput)
-	}
+			`)
 }
