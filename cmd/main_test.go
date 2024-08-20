@@ -146,6 +146,10 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
+			OutKeys: []KeyCode{evdev.KEY_Y},
+		},
 	}
 	f := func(input string, expectedOutput string) {
 		ew := writeToSlice{}
@@ -155,15 +159,6 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 		require.ErrorIs(t, err, io.EOF)
 		ew.requireEqual(t, expectedOutput)
 	}
-	f(`
-			1716752333;203961;EV_KEY;KEY_A;down
-			1716752333;327486;EV_KEY;KEY_A;up
-			`,
-		`
-			A-down
-			A-up
-			`,
-	)
 	f(`
 			1712519053;127714;EV_KEY;KEY_B;down
 			1712519053;149844;EV_KEY;KEY_B;up
@@ -182,6 +177,15 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			C-down
 			C-up
 			`)
+	f(`
+			1716752333;203961;EV_KEY;KEY_A;down
+			1716752333;327486;EV_KEY;KEY_A;up
+			`,
+		`
+			A-down
+			A-up
+			`,
+	)
 	f(`
 			1712519053;827714;EV_KEY;KEY_F;down
 			1712519053;849844;EV_KEY;KEY_A;down
@@ -208,4 +212,39 @@ func Test_manInTheMiddle_asdf_ComboWithMatch(t *testing.T) {
 			A-up
 			F-up
 			`)
+}
+
+func Test_manInTheMiddle_asdf_TwoJoinedCombos(t *testing.T) {
+	// A-down, F-down, F-up (emit x), J-down, F-up (emit y)
+	allCombos := []Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+		{
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
+			OutKeys: []KeyCode{evdev.KEY_Y},
+		},
+	}
+	f := func(input string, expectedOutput string) {
+		ew := writeToSlice{}
+		er, err := NewReadFromSlice(input)
+		require.Nil(t, err)
+		err = manInTheMiddle(er, &ew, allCombos, false)
+		require.ErrorIs(t, err, io.EOF)
+		ew.requireEqual(t, expectedOutput)
+	}
+	f(`
+			1716752333;000000;EV_KEY;KEY_A;down
+			1716752333;100000;EV_KEY;KEY_F;down
+			1716752333;200000;EV_KEY;KEY_F;up
+			1716752333;300000;EV_KEY;KEY_J;down
+			1716752333;400000;EV_KEY;KEY_J;up
+			1716752333;500000;EV_KEY;KEY_A;up
+			`,
+		`
+			X-down
+			X-up
+			`,
+	)
 }

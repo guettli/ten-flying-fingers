@@ -1,3 +1,5 @@
 combos:
   - keys: f j
     outKeys: x
+  - keys: f k
+    outKeys: y

@@ -24,7 +24,7 @@ const (
 
 type Event = evdev.InputEvent
 
-type KeyCode = evdev.EvCode
+type KeyCode = evdev.EvCode // for exmaple KEY_A, KEY_B, ...
 
 func timeSub(e1, e2 Event) time.Duration {
 	return syscallTimevalToTime(e1.Time).Sub(syscallTimevalToTime(e2.Time))
@@ -364,19 +364,29 @@ type Combo struct {
 }
 
 func (c *Combo) matches(ev Event) bool {
-	for k := range c.Keys {
-		if c.Keys[k] == ev.Code {
-			return true
-		}
+	return slices.Contains(c.Keys, ev.Code)
+}
+
+func (c *Combo) String() string {
+	keys := make([]string, 0, len(c.Keys))
+	for _, k := range c.Keys {
+		keys = append(keys, evdev.CodeName(evdev.EV_KEY, k))
 	}
-	return false
+	out := make([]string, 0, len(c.OutKeys))
+	for _, k := range c.OutKeys {
+		out = append(out, evdev.CodeName(evdev.EV_KEY, k))
+	}
+	return fmt.Sprintf("Keys: %+v OutKeys: %+v", keys, out)
 }
 
 type partialCombo struct {
-	combo           *Combo
-	seenDownKeys    []evdev.EvCode
-	seenUpKeys      []evdev.EvCode
-	downKeysWritten bool // the downKeys of the combo have already been written.
+	combo        *Combo
+	seenDownKeys []evdev.EvCode
+	seenUpKeys   []evdev.EvCode
+
+	// the downKeys of the combo have already been written.
+	// This happens if you press and hold a combo.
+	downKeysWritten bool
 }
 
 func (pc *partialCombo) AllSeen() bool {
@@ -478,14 +488,14 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo, debug boo
 			}
 		case <-state.activeTimer:
 			// N milliseconds after the last key-down ...
-			if state.activeCombo == nil {
+			if state.completedCombo == nil {
 				// No combos was completed. Flush buffer and clear partial combos.
 				state.FlushBuffer()
 				continue
 			}
 			// All keys were pressed, but not all up-keys seen yet.
 			// Fire the down-keys for this combo.
-			pc := state.activeCombo.combo
+			pc := state.completedCombo.combo
 			for i := range pc.OutKeys {
 				if err := state.WriteEvent(Event{
 					Time:  state.buf[len(state.buf)-1].Time,
@@ -497,7 +507,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo, debug boo
 				}
 			}
 			state.activeTimer = nil
-			state.activeCombo.downKeysWritten = true
+			state.completedCombo.downKeysWritten = true
 		}
 	}
 }
@@ -522,11 +532,11 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 	default:
 		return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
 	}
-	if debug {
-		fmt.Printf(" partialCombos %s. Buffer %q\n", partialCombosToString(state.partialCombos), state.String())
-	}
 	if err != nil {
 		return err
+	}
+	if debug {
+		fmt.Printf(" partialCombos %s. Buffer %q\n", partialCombosToString(state.partialCombos), state.String())
 	}
 	return nil
 }
@@ -540,11 +550,11 @@ func NewState(maxLength int, ew EventWriter) *State {
 }
 
 type State struct {
-	buf           []Event
-	outDev        EventWriter
-	partialCombos []partialCombo
-	activeCombo   *partialCombo    // Combo where all keys have been pressed.
-	activeTimer   <-chan time.Time // fires N milliseconds after the lats key-down-event.
+	buf            []Event
+	outDev         EventWriter
+	partialCombos  []partialCombo
+	completedCombo *partialCombo    // Combo where all keys have been pressed.
+	activeTimer    <-chan time.Time // fires N milliseconds after the lats key-down-event.
 }
 
 func (state *State) WriteEvent(ev Event) error {
@@ -588,7 +598,7 @@ func (state *State) FlushBuffer() error {
 	}
 	state.buf = nil
 	state.partialCombos = nil
-	state.activeCombo = nil
+	state.completedCombo = nil
 	state.activeTimer = nil
 	return nil
 }
@@ -631,7 +641,9 @@ func (state *State) HandleUpChar(
 	for i := range state.partialCombos {
 		pc := &state.partialCombos[i]
 		if !pc.combo.matches(ev) {
-			panic(fmt.Sprintf("confused. The event does not correspond to a partialCombo. %s", eventToCsvLine(ev)))
+			panic(fmt.Sprintf("confused. The event does not correspond to a partialCombo. %s %s",
+				eventToCsvLine(ev),
+				pc.String()))
 		}
 		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
 		if len(pc.seenUpKeys) == len(pc.combo.Keys) {
@@ -696,7 +708,7 @@ func (state *State) WriteCombo(combo Combo, time syscall.Timeval, writeOnlyUpKey
 	}
 	state.buf = nil
 	state.partialCombos = nil
-	state.activeCombo = nil
+	state.completedCombo = nil
 	state.activeTimer = nil
 	return nil
 }
@@ -707,7 +719,7 @@ func (state *State) HandleDownChar(
 ) error {
 	// fmt.Printf("down %s\n", eventToCsvLine(ev))
 
-	state.activeCombo = nil
+	state.completedCombo = nil
 	state.activeTimer = time.After(150 * time.Millisecond)
 	var newPartialCombos []partialCombo
 	// Filter the existing open partialCombos
@@ -718,7 +730,7 @@ func (state *State) HandleDownChar(
 				pc.seenDownKeys = append(pc.seenDownKeys, ev.Code)
 			}
 			if pc.AllSeen() {
-				state.activeCombo = pc
+				state.completedCombo = pc
 			}
 			newPartialCombos = append(newPartialCombos, *pc)
 		}
