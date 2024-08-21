@@ -27,7 +27,13 @@ type Event = evdev.InputEvent
 type KeyCode = evdev.EvCode // for exmaple KEY_A, KEY_B, ...
 
 func timeSub(e1, e2 Event) time.Duration {
-	return syscallTimevalToTime(e1.Time).Sub(syscallTimevalToTime(e2.Time))
+	t1 := syscallTimevalToTime(e1.Time)
+	t2 := syscallTimevalToTime(e2.Time)
+	diff := t2.Sub(t1)
+	if diff < 0 {
+		panic("I am confused. timeSub should be a positive duration")
+	}
+	return diff
 }
 
 var keyEventValueToString = []string{"/", "_", "="}
@@ -581,10 +587,15 @@ func (state *State) Len() int {
 
 func (state *State) String() string {
 	var ret []string
+	var prev *Event
 	for _, ev := range state.buf {
+		if prev != nil {
+			ret = append(ret, fmt.Sprintf("(%s)", timeSub(*prev, ev).String()))
+		}
 		ret = append(ret, eventKeyToString(&ev))
+		prev = &ev
 	}
-	return strings.Join(ret, ", ")
+	return strings.Join(ret, " ")
 }
 
 // The buffered events don't match a combo.
@@ -648,28 +659,9 @@ func (state *State) HandleUpChar(
 		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
 		if len(pc.seenUpKeys) == len(pc.combo.Keys) {
 			// The final up-Key arrived. Time to execute combo?
-			// Combo or overlap? Get timedelta between last down event, and first up event.
-			var firstUp *Event
-			for i := range state.buf {
-				if state.buf[i].Value == UP {
-					firstUp = &state.buf[i]
-					break
-				}
-			}
-			var latestDown *Event
-			for i := range state.buf {
-				e := &state.buf[len(state.buf)-1-i]
-				if e.Value == DOWN {
-					latestDown = e
-					break
-				}
-			}
-
-			delta := timeSub(*firstUp, *latestDown)
-			if delta < 50*time.Millisecond {
-				// short overlap. This seems to be two characters
-				// after each other, not a combo.
-				// Write out all buffered events.
+			firstUp, isOverlap := state.isOverlapOrFinishedCombo(ev)
+			fmt.Printf("%+v isOverlap %v\n", firstUp, isOverlap)
+			if isOverlap {
 				return state.FlushBufferAndWriteEvent(ev)
 			}
 			// All keys of this combo got pressed.
@@ -683,6 +675,41 @@ func (state *State) HandleUpChar(
 	// no combo was finished. Write event to buffer
 	state.buf = append(state.buf, ev)
 	return nil
+}
+
+// Combo or overlap? Get timedelta between last down event, and first up event.
+// short overlap. This seems to be two characters
+// after each other, not a combo.
+// Write out all buffered events.
+// returns true, if it is an short overlap of keys, and not a combo.
+func (state *State) isOverlapOrFinishedCombo(ev evdev.InputEvent) (*evdev.InputEvent, bool) {
+	var firstUp *Event
+	for i := range state.buf {
+		if state.buf[i].Value == UP {
+			firstUp = &state.buf[i]
+			break
+		}
+	}
+	var latestDown *Event
+	for i := range state.buf {
+		e := &state.buf[len(state.buf)-1-i]
+		if e.Value == DOWN {
+			latestDown = e
+			break
+		}
+	}
+
+	fmt.Println(state.String())
+	delta := timeSub(*latestDown, *firstUp)
+	if delta < 0 {
+		panic(fmt.Sprintf("I am confused. Negative time delta? delta: %v. firstUp %+v latestDown %+v | %s", delta,
+			firstUp, latestDown, state.String()))
+	}
+	if delta < 50*time.Millisecond {
+		fmt.Printf("delta: %v\n", delta)
+		return nil, true
+	}
+	return firstUp, false
 }
 
 func (state *State) WriteCombo(combo Combo, time syscall.Timeval, writeOnlyUpKeys bool) error {

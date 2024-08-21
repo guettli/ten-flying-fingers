@@ -237,14 +237,16 @@ func Test_manInTheMiddle_asdf_TwoJoinedCombos(t *testing.T) {
 	f(`
 			1716752333;000000;EV_KEY;KEY_A;down
 			1716752333;100000;EV_KEY;KEY_F;down
-			1716752333;200000;EV_KEY;KEY_F;up
-			1716752333;300000;EV_KEY;KEY_J;down
-			1716752333;400000;EV_KEY;KEY_J;up
-			1716752333;500000;EV_KEY;KEY_A;up
+			1716752333;400000;EV_KEY;KEY_F;up
+			1716752333;600000;EV_KEY;KEY_J;down
+			1716752333;800000;EV_KEY;KEY_J;up
+			1716752334;000000;EV_KEY;KEY_A;up
 			`,
 		`
 			X-down
 			X-up
+			Y-down
+			Y-up
 			`,
 	)
 }
