@@ -26,12 +26,13 @@ type Event = evdev.InputEvent
 
 type KeyCode = evdev.EvCode // for exmaple KEY_A, KEY_B, ...
 
-func timeSub(e1, e2 Event) time.Duration {
-	t1 := syscallTimevalToTime(e1.Time)
-	t2 := syscallTimevalToTime(e2.Time)
+// timSub calculates the duration. The event "first" must be younger.
+func timeSub(first, second Event) time.Duration {
+	t1 := syscallTimevalToTime(first.Time)
+	t2 := syscallTimevalToTime(second.Time)
 	diff := t2.Sub(t1)
 	if diff < 0 {
-		panic("I am confused. timeSub should be a positive duration")
+		panic(fmt.Sprintf("I am confused. timeSub should be a positive duration: diff=%v t1=%v t2=%v", diff, t1, t2))
 	}
 	return diff
 }
@@ -530,6 +531,7 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 		}
 		return nil
 	}
+	state.AssertValid()
 	switch evP.Value {
 	case UP:
 		err = state.HandleUpChar(*evP, allCombos)
@@ -541,6 +543,7 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 	if err != nil {
 		return err
 	}
+	state.AssertValid()
 	if debug {
 		fmt.Printf(" partialCombos %s. Buffer %q\n", partialCombosToString(state.partialCombos), state.String())
 	}
@@ -657,9 +660,10 @@ func (state *State) HandleUpChar(
 				pc.String()))
 		}
 		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
+
 		if len(pc.seenUpKeys) == len(pc.combo.Keys) {
 			// The final up-Key arrived. Time to execute combo?
-			firstUp, isOverlap := state.isOverlapOrFinishedCombo(ev)
+			firstUp, isOverlap := state.isOverlapOrFinishedCombo(pc)
 			fmt.Printf("%+v isOverlap %v\n", firstUp, isOverlap)
 			if isOverlap {
 				return state.FlushBufferAndWriteEvent(ev)
@@ -682,24 +686,32 @@ func (state *State) HandleUpChar(
 // after each other, not a combo.
 // Write out all buffered events.
 // returns true, if it is an short overlap of keys, and not a combo.
-func (state *State) isOverlapOrFinishedCombo(ev evdev.InputEvent) (*evdev.InputEvent, bool) {
+func (state *State) isOverlapOrFinishedCombo(pc *partialCombo) (*evdev.InputEvent, bool) {
 	var firstUp *Event
 	for i := range state.buf {
-		if state.buf[i].Value == UP {
+		ev := state.buf[i]
+		if ev.Value == UP && slices.Contains(pc.combo.Keys, ev.Code) {
 			firstUp = &state.buf[i]
 			break
 		}
 	}
+	if firstUp == nil {
+		panic("I am confused, firstUp not found.")
+	}
 	var latestDown *Event
 	for i := range state.buf {
-		e := &state.buf[len(state.buf)-1-i]
-		if e.Value == DOWN {
-			latestDown = e
+		ev := &state.buf[len(state.buf)-1-i]
+		if ev.Value == DOWN && slices.Contains(pc.combo.Keys, ev.Code) {
+			latestDown = ev
 			break
 		}
 	}
+	if latestDown == nil {
+		panic("I am confused, latestDown not found.")
+	}
 
 	fmt.Println(state.String())
+	state.AssertValid()
 	delta := timeSub(*latestDown, *firstUp)
 	if delta < 0 {
 		panic(fmt.Sprintf("I am confused. Negative time delta? delta: %v. firstUp %+v latestDown %+v | %s", delta,
@@ -1023,4 +1035,20 @@ func combos(yamlFile string, dev *evdev.InputDevice, debug bool) error {
 	}
 	defer outDev.Close()
 	return manInTheMiddle(dev, outDev, combos, debug)
+}
+
+func (state *State) AssertValid() {
+	for _, pc := range state.partialCombos {
+		found := false
+		for _, ev := range state.buf {
+			if slices.Contains(pc.combo.Keys, ev.Code) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			panic(fmt.Sprintf(`state.buf contains a event.Code which is not any in partialCombos.
+%s`, state.String()))
+		}
+	}
 }
