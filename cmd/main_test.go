@@ -330,3 +330,36 @@ func Test_manInTheMiddle_TwoJoinedCombos(t *testing.T) {
 			`,
 	)
 }
+
+func Test_manInTheMiddle_ComboWithMatch_FJK(t *testing.T) {
+	allCombos := []Combo{
+		{
+			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
+			OutKeys: []KeyCode{evdev.KEY_X},
+		},
+		{
+			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_K},
+			OutKeys: []KeyCode{evdev.KEY_Y},
+		},
+	}
+	f := func(input string, expectedOutput string) {
+		ew := writeToSlice{}
+		er, err := NewReadFromSlice(input)
+		require.Nil(t, err)
+		err = manInTheMiddle(er, &ew, allCombos, true, true)
+		require.ErrorIs(t, err, io.EOF)
+		ew.requireEqual(t, expectedOutput)
+	}
+	f(`
+			1712519050;000000;EV_KEY;KEY_F;down
+			1712519050;064000;EV_KEY;KEY_K;down
+			1712519050;128000;EV_KEY;KEY_F;up
+			1712519050;144000;EV_KEY;KEY_J;down
+			1712519050;208000;EV_KEY;KEY_K;up
+			1712519050;224000;EV_KEY;KEY_F;down
+	`,
+		`
+			W-down
+			W-up
+	`)
+}

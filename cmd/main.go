@@ -101,10 +101,15 @@ Usage:
 
      Run combos defined in combos.yaml
 
+  %s replay-combo-log combos.yaml combo.log
+
+     Replay a combo log. If you got a panic while using the combos sub-command,
+	 you can update the Go code and replay the log to see if the bug was fixed.
+	 You must run the combos sub-command with the --debug flag to create the log.
 
   Devices which look like a keyboard:
 %s
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], listDevices())
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], listDevices())
 }
 
 func findDev() (string, error) {
@@ -274,6 +279,17 @@ func myMain() error {
 			os.Exit(1)
 		}
 		return nil
+	case "replay-combo-log":
+		if len(os.Args) != 4 {
+			fmt.Println("Not enough arguments")
+			os.Exit(1)
+		}
+		err := replayComboLog(os.Args[2], os.Args[3])
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		return nil
 	default:
 		usage()
 		return nil
@@ -294,7 +310,7 @@ func createEventsFromCsv(csvPath string) error {
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
-		ev, err := lineToEvent(line)
+		ev, err := csvlineToEvent(line)
 		if err != nil {
 			return err
 		}
@@ -306,7 +322,7 @@ func createEventsFromCsv(csvPath string) error {
 	return nil
 }
 
-func lineToEvent(line string) (Event, error) {
+func csvlineToEvent(line string) (Event, error) {
 	var ev Event
 	parts := strings.Split(line, ";")
 	if len(parts) != 5 {
@@ -336,12 +352,17 @@ func lineToEvent(line string) (Event, error) {
 
 	evType, ok := evdev.EVFromString[parts[2]]
 	if !ok {
-		return ev, fmt.Errorf("failed to parse col 3 (EvType) from line: %s. %s", line, parts[2])
+		return ev, fmt.Errorf("failed to parse col 3 (EvType) from line: %s. %q", line, parts[2])
 	}
 
-	code, ok := evdev.KEYFromString[parts[3]]
-	if !ok {
-		return ev, fmt.Errorf("failed to parse col 4 (Key) from line: %s. %s", line, parts[3])
+	var code evdev.EvCode
+	if parts[3] == "SYN_REPORT" {
+		code = evdev.SYN_REPORT
+	} else {
+		code, ok = evdev.KEYFromString[parts[3]]
+		if !ok {
+			return ev, fmt.Errorf("failed to parse col 4 (Key) from line: %s. %q", line, parts[3])
+		}
 	}
 	var value int64
 	switch parts[4] {
@@ -490,7 +511,9 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []Combo, debug boo
 				}
 				return err
 			}
-
+			if debug {
+				fmt.Printf("|>>%s\n", eventToCsvLine(*evP))
+			}
 			if state.fakeActiveTimer && state.fakeActiverTimerNextTime.Before(syscallTimevalToTime(evP.Time)) {
 				if err := state.AfterTimer(); err != nil {
 					return err
@@ -536,7 +559,9 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 	}
 	state.AssertValid()
 	if debug {
-		fmt.Printf(" partialCombos %s. Buffer %q\n", partialCombosToString(state.partialCombos), state.String())
+		fmt.Printf(" partialCombos (%d) %s. Buffer %q\n",
+			len(state.partialCombos),
+			partialCombosToString(state.partialCombos), state.String())
 	}
 	return nil
 }
@@ -821,6 +846,7 @@ func (state *State) HandleDownChar(
 			}
 			if pc.AllSeen() {
 				if state.completedPartialCombo != nil {
+					fmt.Printf(" ... pre panic: %s\n", state.String())
 					panic("I am confused. Two combos are completed.")
 				}
 				state.completedPartialCombo = pc
@@ -1038,7 +1064,7 @@ func csvToSlice(csvString string) ([]Event, error) {
 		if line == "" || string(line[0]) == "#" {
 			continue
 		}
-		ev, err := lineToEvent(line)
+		ev, err := csvlineToEvent(line)
 		if err != nil {
 			return nil, err
 		}
@@ -1073,6 +1099,55 @@ func eventsToCsv(s []Event) string {
 		csv = append(csv, eventToCsvLine(ev))
 	}
 	return strings.Join(csv, "")
+}
+
+type ComboLogEventReader struct {
+	scanner *bufio.Scanner
+}
+
+func (c *ComboLogEventReader) ReadOne() (*Event, error) {
+	for {
+		if !c.scanner.Scan() {
+			if err := c.scanner.Err(); err != nil {
+				return nil, fmt.Errorf("error reading: %w", err)
+			}
+			return nil, io.EOF
+		}
+		line := c.scanner.Text()
+		idx := strings.Index(line, "|>>")
+		if idx == -1 {
+			continue
+		}
+		ev, err := csvlineToEvent(line[idx+3:])
+		return &ev, err
+	}
+}
+
+func replayComboLog(comboYamlFile string, logFile string) error {
+	outDev, err := evdev.CreateDevice("replay", evdev.InputID{
+		BusType: 0x03,
+		Vendor:  0x4711,
+		Product: 0x0816,
+		Version: 1,
+	}, nil)
+	if err != nil {
+		return err
+	}
+	defer outDev.Close()
+	combos, err := LoadYamlFile(comboYamlFile)
+	if err != nil {
+		return fmt.Errorf("failed to load %q: %w", comboYamlFile, err)
+	}
+	file, err := os.Open(logFile)
+	if err != nil {
+		return fmt.Errorf("failed to open %q: %w", logFile, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	logReader := ComboLogEventReader{scanner: scanner}
+
+	return manInTheMiddle(&logReader, outDev, combos, true, false)
 }
 
 func combos(yamlFile string, dev *evdev.InputDevice, debug bool) error {
