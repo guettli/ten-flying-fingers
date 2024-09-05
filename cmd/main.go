@@ -648,7 +648,7 @@ func (state *State) FlushBuffer(reason string) error {
 }
 
 func (state *State) FlushBufferAndWriteEvent(ev Event, reason string) error {
-	err := state.FlushBuffer("FlushBufferAndWriteEvent flush buff" + reason)
+	err := state.FlushBuffer("FlushBufferAndWriteEvent flush buff " + reason)
 	if err != nil {
 		return err
 	}
@@ -681,20 +681,23 @@ func (state *State) HandleUpChar(
 		return state.FlushBufferAndWriteEvent(ev, "no corresponding downEvent")
 	}
 
+	if len(state.buf) == 1 && state.buf[0].Code == ev.Code && state.buf[0].Value == DOWN {
+		return state.FlushBufferAndWriteEvent(ev,
+			fmt.Sprintf("single key down/up of a key of a combo. (Ev: %s)",
+				eventKeyToString(&ev)))
+	}
+	// Check if the up-key is part of a active partialCombo
 	for i := range state.partialCombos {
 		pc := state.partialCombos[i]
 		if !pc.combo.matches(ev) {
-			panic(fmt.Sprintf("confused. The event does not correspond to a partialCombo. %s %s",
-				eventToCsvLine(ev),
-				pc.String()))
+			continue
 		}
-		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
 
+		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
 		if len(pc.seenUpKeys) == len(pc.combo.Keys) {
 			// The final up-Key arrived. Time to execute combo?
-			firstUp, isOverlap := state.isOverlapOrFinishedCombo(pc)
-			fmt.Printf("---HandleUp Final Key arrived. %+v isOverlap %v downKeysWritten %v state..downWritten %v \n", firstUp, isOverlap, pc.downKeysWritten,
-				state.completedPartialCombo.downKeysWritten)
+			isOverlap := state.isOverlapOrFinishedCombo(pc)
+			fmt.Printf("---HandleUp Final Key arrived. %+v isOverlap %v downKeysWritten %v\n", pc.time, isOverlap, pc.downKeysWritten)
 			if isOverlap {
 				return state.FlushBufferAndWriteEvent(ev, "isOverlap, not combo")
 			}
@@ -707,7 +710,7 @@ func (state *State) HandleUpChar(
 				state.completedPartialCombo = nil
 			}
 
-			err := state.WriteCombo(*pc.combo, firstUp.Time, pc.downKeysWritten)
+			err := state.WriteCombo(*pc.combo, pc.time, pc.downKeysWritten)
 			if err != nil {
 				return err
 			}
@@ -724,7 +727,7 @@ func (state *State) HandleUpChar(
 // after each other, not a combo.
 // Write out all buffered events.
 // returns true, if it is an short overlap of keys, and not a combo.
-func (state *State) isOverlapOrFinishedCombo(pc *partialCombo) (*evdev.InputEvent, bool) {
+func (state *State) isOverlapOrFinishedCombo(pc *partialCombo) bool {
 	var firstUp *Event
 	for i := range state.buf {
 		ev := state.buf[i]
@@ -748,19 +751,19 @@ func (state *State) isOverlapOrFinishedCombo(pc *partialCombo) (*evdev.InputEven
 		panic("I am confused, latestDown not found.")
 	}
 
-	fmt.Println("isOverlap... " + state.String())
 	state.AssertValid()
+	fmt.Printf("is overlap delta ??? %v %v. %s\n", latestDown.String(), firstUp.String(), state.String())
 	delta := timeSub(*latestDown, *firstUp)
 	if delta < 0 {
 		panic(fmt.Sprintf("I am confused. Negative time delta? delta: %v. firstUp %+v latestDown %+v | %s", delta,
 			firstUp, latestDown, state.String()))
 	}
-	fmt.Printf("is x delta: %v\n", delta)
 	if delta < 50*time.Millisecond {
-		fmt.Printf("is overlap delta: %v\n", delta)
-		return nil, true
+		fmt.Printf("is overlap delta: %v. %s\n", delta, state.String())
+		return true
 	}
-	return firstUp, false
+	fmt.Printf("is no overlap delta: %v. %s\n", delta, state.String())
+	return false
 }
 
 func (state *State) WriteCombo(combo Combo, time syscall.Timeval, downKeysWritten bool) error {
