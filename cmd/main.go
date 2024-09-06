@@ -739,6 +739,7 @@ func (state *State) HandleUpChar(
 	}
 
 	upKeyWasWaitedFor := false
+	newUpKeysMissing := make([]*partialCombo, 0, len(state.upKeysMissing))
 	for _, upMissing := range state.upKeysMissing {
 		if upMissing.combo.matches(ev) {
 			upMissing.seenUpKeys.Add(ev.Code)
@@ -748,9 +749,12 @@ func (state *State) HandleUpChar(
 				if err != nil {
 					return fmt.Errorf("failed to write combo: %w", err)
 				}
+				continue
 			}
 		}
+		newUpKeysMissing = append(newUpKeysMissing, upMissing)
 	}
+	state.upKeysMissing = newUpKeysMissing
 	if upKeyWasWaitedFor {
 		return nil
 	}
@@ -897,15 +901,6 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 	}
 	state.partialCombos = newPartialCombos
 
-	newMissingUp := make([]*partialCombo, 0, len(state.upKeysMissing))
-	for _, missingUp := range state.upKeysMissing {
-		if missingUp.AllUpKeysSeen() {
-			fmt.Printf("  WritePartialCombo Removing upKeysMissing %s\n", missingUp.String())
-			continue
-		}
-		newMissingUp = append(newMissingUp, missingUp)
-	}
-	state.upKeysMissing = newMissingUp
 	fmt.Printf("  End of WritePartialCombo>State: %s\n", state.String())
 	return nil
 }
@@ -990,6 +985,7 @@ func (state *State) HandleDownChar(
 	// Write key-up event for upKeysMissing pcs,
 	// if the current key does not match the.
 	newUpkeysMissing := make([]*partialCombo, 0, len(state.upKeysMissing))
+	reFilterUpKeysMissing := false
 	for _, pc := range state.upKeysMissing {
 		if !pc.combo.matches(ev) && pc.AllDownKeysSeen() {
 			err := state.WritePartialCombo(pc, "HandleDownChar>AllDownKeysSeen")
@@ -997,12 +993,38 @@ func (state *State) HandleDownChar(
 				return fmt.Errorf("failed to write combo: %s. %w", state.String(), err)
 			}
 			fmt.Printf("  HandleDownChar Removing upKeysMissing %s\n", pc.String())
+			reFilterUpKeysMissing = true
 			continue
 		}
 		newUpkeysMissing = append(newUpkeysMissing, pc)
 	}
 	state.upKeysMissing = newUpkeysMissing
+	state.AssertValid()
+	if reFilterUpKeysMissing {
+		// state.buf got some events removed. Re-filter the upKeysMissing.
+		// Keep only combos which are still active.
+		newUpkeysMissing2 := make([]*partialCombo, 0, len(state.upKeysMissing))
+		for _, pc := range state.upKeysMissing {
+			keep := false
+			for _, bufEvent := range state.buf {
+				if pc.combo.matches(bufEvent) {
+					keep = true
+					break
+				}
+			}
+			if state.upKeysToSwallow.ContainsAny(pc.seenDownKeys.ToSlice()...) {
+				keep = true
+			}
 
+			if keep {
+				newUpkeysMissing2 = append(newUpkeysMissing2, pc)
+				continue
+			}
+			fmt.Printf("  HandleDownChar reFilterUpKeysMissing Removing upKeysMissing %s. State: %s\n", pc.String(), state.String())
+		}
+		state.upKeysMissing = newUpkeysMissing2
+	}
+	state.AssertValid()
 	return nil
 }
 
@@ -1300,6 +1322,10 @@ func (state *State) AssertValid() {
 					evdev.KEYToString[key], pc.String()))
 			}
 		}
+		if pc.seenDownKeys.Cardinality() < pc.seenUpKeys.Cardinality() {
+			panic(fmt.Sprintf("I am confused. seenDownKeys < seenUpKeys of pc %s. %s", pc.String(), state.String()))
+		}
+
 	}
 	if len(state.buf) == 0 && len(state.partialCombos) != 0 {
 		panic(fmt.Sprintf("I am confused. Buffer is empty, and there are partialCombos: %s", state.String()))
@@ -1341,14 +1367,7 @@ func (state *State) AssertValid() {
 			panic(fmt.Sprintf("I am confused. All keys of pc %s are seen. %s", pc.String(), state.String()))
 		}
 	}
-	for _, pc := range state.upKeysMissing {
-		if pc.seenDownKeys.Cardinality() < pc.seenUpKeys.Cardinality() {
-			panic(fmt.Sprintf("I am confused. seenDownKeys < seenUpKeys of pc %s. %s", pc.String(), state.String()))
-		}
-		if !pc.AllDownKeysSeen() {
-			panic(fmt.Sprintf("I am confused. Not all keys of upKeysMissing %s are seen. %s", pc.String(), state.String()))
-		}
-	}
+
 	// upKeysMissing and partialCombos should not have any common entries.
 	intersection := make([]*partialCombo, 0)
 	for _, pc := range state.partialCombos {
