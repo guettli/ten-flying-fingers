@@ -454,21 +454,21 @@ func (pc *partialCombo) AllUpKeysSeen() bool {
 }
 
 func (pc *partialCombo) String() string {
-	keys := make([]string, len(pc.combo.Keys))
-	for i, key := range pc.combo.Keys {
-		keys[i] = evdev.KEYToString[key]
+	keys := make([]string, 0, len(pc.combo.Keys))
+	for _, key := range pc.combo.Keys {
+		keys = append(keys, keyToString(key))
 	}
-	outKeys := make([]string, len(pc.combo.OutKeys))
-	for i, key := range pc.combo.OutKeys {
-		outKeys[i] = evdev.KEYToString[key]
+	outKeys := make([]string, 0, len(pc.combo.OutKeys))
+	for _, key := range pc.combo.OutKeys {
+		outKeys = append(outKeys, keyToString(key))
 	}
 	var seenDown []string
 	for _, key := range pc.seenDownKeys {
-		seenDown = append(seenDown, evdev.KEYToString[key])
+		seenDown = append(seenDown, keyToString(key))
 	}
 	var seenUp []string
 	for _, key := range pc.seenUpKeys {
-		seenUp = append(seenUp, evdev.KEYToString[key])
+		seenUp = append(seenUp, keyToString(key))
 	}
 	return fmt.Sprintf("[%s -> %s (seenDown %q seenUp %q)]",
 		strings.Join(keys, " "),
@@ -476,6 +476,10 @@ func (pc *partialCombo) String() string {
 		strings.Join(seenDown, " "),
 		strings.Join(seenUp, " "),
 	)
+}
+
+func keyToString(key KeyCode) string {
+	return strings.TrimPrefix(evdev.KEYToString[key], "KEY_")
 }
 
 func partialCombosToString(partialCombos []*partialCombo) string {
@@ -583,9 +587,6 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 		return err
 	}
 	state.AssertValid()
-	if debug {
-		fmt.Printf(" State: %s\n", state.String())
-	}
 	return nil
 }
 
@@ -645,7 +646,7 @@ func (state *State) WriteDownKeys(pc *partialCombo, reason string) error {
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(combo.OutKeys[i]),
 			Value: DOWN,
-		}, reason+" WriteDownKeys")
+		}, reason+">WriteDownKeys")
 		if err != nil {
 			return err
 		}
@@ -655,7 +656,7 @@ func (state *State) WriteDownKeys(pc *partialCombo, reason string) error {
 }
 
 func (state *State) WriteEvent(ev Event, reason string) error {
-	fmt.Printf("WriteEvent %s %s. %s\n", eventKeyToString(&ev), reason, state.String())
+	fmt.Printf("  write %s %s.\n  %s\n", eventKeyToString(&ev), reason, state.String())
 	err := state.outDev.WriteOne(&ev)
 	return errors.Join(err, state.outDev.WriteOne(&Event{
 		Time: ev.Time,
@@ -701,7 +702,7 @@ func (state *State) String() string {
 // And set partialCombos to nil.
 func (state *State) FlushBuffer(reason string) error {
 	for _, bufEvent := range state.buf {
-		if err := state.WriteEvent(bufEvent, "FlushBuffer "+reason); err != nil {
+		if err := state.WriteEvent(bufEvent, reason+">FlushBuffer"); err != nil {
 			return err
 		}
 	}
@@ -714,22 +715,21 @@ func (state *State) FlushBuffer(reason string) error {
 }
 
 func (state *State) FlushBufferAndWriteEvent(ev Event, reason string) error {
-	err := state.FlushBuffer("FlushBufferAndWriteEvent flush buff " + reason)
+	err := state.FlushBuffer(reason + ">FlushBufferAndWriteEvent-flushBuff")
 	if err != nil {
 		return err
 	}
-	return state.WriteEvent(ev, "FlushBufferAndWriteEvent write ev "+reason)
+	return state.WriteEvent(ev, reason+">FlushBufferAndWriteEvent-writeE")
 }
 
 func (state *State) HandleUpChar(
 	ev Event,
 	allCombos []*Combo,
 ) error {
-	fmt.Printf("HandleUpChar Event %s    State: %s\n", eventKeyToString(&ev), state.String())
 	state.AssertValid()
 	defer state.AssertValid()
 	if state.Len() == 0 && len(state.upKeysMissing) == 0 {
-		return state.FlushBufferAndWriteEvent(ev, "no Combo active")
+		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>no-combo-active")
 	}
 
 	upKeyWasWaitedFor := false
@@ -738,7 +738,7 @@ func (state *State) HandleUpChar(
 			upMissing.seenUpKeys = append(upMissing.seenUpKeys, ev.Code)
 			upKeyWasWaitedFor = true
 			if upMissing.AllUpKeysSeen() {
-				err := state.WritePartialCombo(upMissing, "HandleUpChar upKeyWasWaitedFor")
+				err := state.WritePartialCombo(upMissing, "HandleUpChar>upKey-was-waited-for")
 				if err != nil {
 					return fmt.Errorf("failed to write combo: %w", err)
 				}
@@ -759,13 +759,11 @@ func (state *State) HandleUpChar(
 	}
 	if downEvent == nil {
 		// No corresponding downEvent. Swallow it out.
-		return state.FlushBufferAndWriteEvent(ev, "no Combo active")
+		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>no-down-event")
 	}
 
 	if len(state.buf) == 1 && state.buf[0].Code == ev.Code && state.buf[0].Value == DOWN {
-		return state.FlushBufferAndWriteEvent(ev,
-			fmt.Sprintf("single key down/up of a key of a combo. (Ev: %s)",
-				eventKeyToString(&ev)))
+		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>single-key-up")
 	}
 	// Check if the up-key is part of a active partialCombo
 	for _, pc := range state.partialCombos {
@@ -793,7 +791,7 @@ func (state *State) HandleUpChar(
 		}
 		pc.seenUpKeys = append(pc.seenUpKeys, ev.Code)
 		if pc.AllUpKeysSeen() {
-			err := state.WritePartialCombo(pc, "HandleUpChar")
+			err := state.WritePartialCombo(pc, "HandleUpChar>AllUpKeysSeen")
 			if err != nil {
 				return fmt.Errorf("failed to write combo: %w", err)
 			}
@@ -814,7 +812,6 @@ func (state *State) HandleUpChar(
 func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 	pc.AssertValid()
 	combo := pc.combo
-	fmt.Printf("WriteCombo %s %s downKeysWritten %v\n", reason, combo.String(), pc.downKeysWritten)
 	for i := range combo.OutKeys {
 		if !pc.downKeysWritten {
 			if err := state.WriteEvent(Event{
@@ -822,7 +819,7 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 				Type:  evdev.EV_KEY,
 				Code:  evdev.EvCode(combo.OutKeys[i]),
 				Value: DOWN,
-			}, reason+" WriteCombo down"); err != nil {
+			}, reason+">WritePartialCombo-down"); err != nil {
 				return err
 			}
 		}
@@ -831,7 +828,7 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(combo.OutKeys[i]),
 			Value: UP,
-		}, reason+" WriteCombo up"); err != nil {
+		}, reason+">WritePartialCombo-up"); err != nil {
 			return err
 		}
 	}
@@ -967,7 +964,6 @@ func (state *State) HandleDownChar(
 			seenDownKeys: []evdev.EvCode{ev.Code},
 			time:         ev.Time,
 		}
-		fmt.Printf(" created ------- pc %s. Event %s. State %s\n", pc.String(), eventKeyToString(&ev), state.String())
 		newPartialCombos = append(newPartialCombos, &pc)
 	}
 	state.partialCombos = newPartialCombos

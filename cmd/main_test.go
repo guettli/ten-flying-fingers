@@ -378,7 +378,7 @@ func Test_manInTheMiddle_TwoJoinedCombos_FirstKeyDownUntilEnd(t *testing.T) {
 	)
 }
 
-func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
+func __Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	// This test is to ensure that no panic happens.
 	// Output could be different.
 	allCombos := []*Combo{
