@@ -735,6 +735,10 @@ func (state *State) HandleUpChar(
 	state.AssertValid()
 	defer state.AssertValid()
 	if state.Len() == 0 && len(state.upKeysMissing) == 0 {
+		if state.upKeysToSwallow.Contains(ev.Code) {
+			state.upKeysToSwallow.Remove(ev.Code)
+			return nil
+		}
 		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>no-combo-active")
 	}
 
@@ -835,7 +839,7 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 				Type:  evdev.EV_KEY,
 				Code:  evdev.EvCode(outKey),
 				Value: DOWN,
-			}, reason+">WritePartialCombo-down"); err != nil {
+			}, reason+">WritePartialCombo-down("+pc.String()+")"); err != nil {
 				return err
 			}
 		}
@@ -844,7 +848,7 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 			Type:  evdev.EV_KEY,
 			Code:  evdev.EvCode(outKey),
 			Value: UP,
-		}, reason+">WritePartialCombo-up"); err != nil {
+		}, reason+">WritePartialCombo-up("+pc.String()+")"); err != nil {
 			return err
 		}
 
@@ -852,6 +856,14 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 	for _, downKey := range pc.seenDownKeys.ToSlice() {
 		if !pc.seenUpKeys.Contains(downKey) {
 			state.upKeysToSwallow.Add(downKey)
+			newBuf := make([]Event, 0, len(state.buf))
+			for _, bufEv := range state.buf {
+				if bufEv.Code == downKey {
+					continue
+				}
+				newBuf = append(newBuf, bufEv)
+			}
+			state.buf = newBuf
 		}
 	}
 	// Remove the events from the buffer.
@@ -864,6 +876,12 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 			// remove down events of the combo, if there is no related partialCombo.
 			keep := false
 			for _, pCombo := range state.partialCombos {
+				if pCombo.seenDownKeys.Contains(ev.Code) {
+					keep = true
+					break
+				}
+			}
+			for _, pCombo := range state.upKeysMissing {
 				if pCombo.seenDownKeys.Contains(ev.Code) {
 					keep = true
 					break
@@ -901,7 +919,7 @@ func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
 	}
 	state.partialCombos = newPartialCombos
 
-	fmt.Printf("  End of WritePartialCombo>State: %s\n", state.String())
+	fmt.Printf("  End of WritePartialCombo (%s) State: %s\n", pc.String(), state.String())
 	return nil
 }
 
@@ -1011,6 +1029,9 @@ func (state *State) HandleDownChar(
 					keep = true
 					break
 				}
+			}
+			if pc.combo.matches(ev) {
+				keep = true
 			}
 			if state.upKeysToSwallow.ContainsAny(pc.seenDownKeys.ToSlice()...) {
 				keep = true
@@ -1350,10 +1371,14 @@ func (state *State) AssertValid() {
 				break
 			}
 		}
-		if !found {
-			panic(fmt.Sprintf(`state.buf contains a event.Code (up) (%s) which is not any in partialCombos. %s`,
-				eventKeyToString(&ev), state.String()))
+		if found {
+			continue
 		}
+		if state.upKeysToSwallow.Contains(ev.Code) {
+			continue
+		}
+		panic(fmt.Sprintf(`state.buf contains a event.Code (up) (%s) which is not in any partialCombos or upKeysMissing. %s`,
+			eventKeyToString(&ev), state.String()))
 	}
 
 	for _, pc := range state.partialCombos {
