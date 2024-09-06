@@ -359,7 +359,11 @@ func Test_manInTheMiddle_ComboWithMatch_FJK(t *testing.T) {
 			1712519050;224000;EV_KEY;KEY_F;down
 	`,
 		`
-			W-down
-			W-up
+			F-down
+			K-down
+			F-up
+			J-down
+			K-up
+			F-down
 	`)
 }

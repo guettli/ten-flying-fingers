@@ -835,6 +835,10 @@ func (state *State) HandleDownChar(
 		state.activeTimer = time.After(timeoutAfterDownDuration)
 	}
 
+	if state.completedPartialCombo != nil && !slices.Contains(state.partialCombos, state.completedPartialCombo) {
+		panic("I am confused. CompletedPartialCombo not in partialCombos")
+	}
+
 	// Filter the existing open partialCombos.
 	// Skip partialCombos which don't match to current event.
 	var newPartialCombos []*partialCombo
@@ -849,6 +853,7 @@ func (state *State) HandleDownChar(
 					fmt.Printf(" ... pre panic: %s\n", state.String())
 					panic("I am confused. Two combos are completed.")
 				}
+				// this combo is completed, but the up-keys are not seen yet.
 				state.completedPartialCombo = pc
 			}
 			newPartialCombos = append(newPartialCombos, pc)
@@ -879,6 +884,9 @@ func (state *State) HandleDownChar(
 		newPartialCombos = append(newPartialCombos, &pc)
 	}
 	state.partialCombos = newPartialCombos
+	if !slices.Contains(state.partialCombos, state.completedPartialCombo) {
+		state.completedPartialCombo = nil
+	}
 	if len(state.partialCombos) == 0 {
 		// No combo is matched.
 		return state.FlushBufferAndWriteEvent(ev, "no combo matched")
