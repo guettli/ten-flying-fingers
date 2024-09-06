@@ -33,35 +33,26 @@ func Test_runeToKeyCode(t *testing.T) {
 }
 
 func TestLoadYamlFromBytes_ok(t *testing.T) {
-	tests := []struct {
-		yamlString string
-		expected   []Combo
-	}{
-		{
-			`combos:
+	yamlString := `combos:
   - keys: f  KEY_J
     outKeys: a b  KEY_C
-`,
-			[]Combo{
-				{
-					Keys: []evdev.EvCode{
-						evdev.KEY_F,
-						evdev.KEY_J,
-					},
-					OutKeys: []evdev.EvCode{
-						evdev.KEY_A,
-						evdev.KEY_B,
-						evdev.KEY_C,
-					},
-				},
+`
+	expected := []*Combo{
+		{
+			Keys: []evdev.EvCode{
+				evdev.KEY_F,
+				evdev.KEY_J,
+			},
+			OutKeys: []evdev.EvCode{
+				evdev.KEY_A,
+				evdev.KEY_B,
+				evdev.KEY_C,
 			},
 		},
 	}
-	for _, tt := range tests {
-		actual, err := LoadYamlFromBytes([]byte(tt.yamlString))
-		require.Nil(t, err)
-		require.Equal(t, tt.expected, actual)
-	}
+	actual, err := LoadYamlFromBytes([]byte(yamlString))
+	require.Nil(t, err)
+	require.Equal(t, expected, actual)
 }
 
 func TestLoadYamlFromBytes_fail(t *testing.T) {

@@ -17,7 +17,7 @@ type Yaml struct {
 	} `yaml:"combos"`
 }
 
-func LoadYamlFile(yamlFile string) ([]Combo, error) {
+func LoadYamlFile(yamlFile string) ([]*Combo, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read yaml config from %q: %w", yamlFile, err)
@@ -29,14 +29,15 @@ func LoadYamlFile(yamlFile string) ([]Combo, error) {
 	return combos, nil
 }
 
-func LoadYamlFromBytes(yamlBytes []byte) ([]Combo, error) {
+func LoadYamlFromBytes(yamlBytes []byte) ([]*Combo, error) {
 	y := Yaml{}
 	err := yaml.Unmarshal(yamlBytes, &y)
 	if err != nil {
 		return nil, err
 	}
-	combos := make([]Combo, len(y.Combos))
-	for i, yamlCombo := range y.Combos {
+	combos := make([]*Combo, 0, len(y.Combos))
+	for _, yamlCombo := range y.Combos {
+		combo := Combo{}
 		if len(yamlCombo.Keys) == 0 {
 			return nil, fmt.Errorf("empty list in 'keys' is not allowed.")
 		}
@@ -44,7 +45,7 @@ func LoadYamlFromBytes(yamlBytes []byte) ([]Combo, error) {
 		if err != nil {
 			return nil, err
 		}
-		combos[i].Keys = keys
+		combo.Keys = keys
 
 		if len(yamlCombo.OutKeys) == 0 {
 			return nil, fmt.Errorf("empty list in 'outKeys' is not allowed.")
@@ -53,7 +54,8 @@ func LoadYamlFromBytes(yamlBytes []byte) ([]Combo, error) {
 		if err != nil {
 			return nil, err
 		}
-		combos[i].OutKeys = keys
+		combo.OutKeys = keys
+		combos = append(combos, &combo)
 	}
 	return combos, nil
 }
