@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/holoplot/go-evdev"
-
-	mapset "github.com/deckarep/golang-set/v2"
 )
 
 const (
@@ -406,88 +404,11 @@ func (c *Combo) String() string {
 	for _, k := range c.OutKeys {
 		out = append(out, evdev.CodeName(evdev.EV_KEY, k))
 	}
-	return fmt.Sprintf("Keys: %+v OutKeys: %+v", keys, out)
-}
-
-type partialCombo struct {
-	combo        *Combo
-	seenDownKeys mapset.Set[evdev.EvCode]
-	seenUpKeys   mapset.Set[evdev.EvCode]
-
-	// the downKeys of the combo have already been written.
-	// This happens if you press and hold a combo.
-	downKeysWritten bool
-
-	time syscall.Timeval
-}
-
-func newPartialCombo(combo *Combo, ev *Event) *partialCombo {
-	return &partialCombo{
-		combo:        combo,
-		seenDownKeys: mapset.NewSet[evdev.EvCode](ev.Code),
-		seenUpKeys:   mapset.NewSet[evdev.EvCode](),
-		time:         ev.Time,
-	}
-}
-
-func (pc *partialCombo) AllDownKeysSeen() bool {
-	if len(pc.combo.Keys) < pc.seenDownKeys.Cardinality() {
-		panic(fmt.Sprintf("I am confused. More seenDownKeys than combo has keys %d %d", len(pc.combo.Keys), pc.seenDownKeys.Cardinality()))
-	}
-	if len(pc.combo.Keys) == pc.seenDownKeys.Cardinality() {
-		return true
-	}
-	return false
-}
-
-func (pc *partialCombo) AllUpKeysSeen() bool {
-	if len(pc.combo.Keys) < pc.seenUpKeys.Cardinality() {
-		panic(fmt.Sprintf("I am confused. More seenUpKeys than combo has keys %d %d", len(pc.combo.Keys), pc.seenUpKeys.Cardinality()))
-	}
-	if len(pc.combo.Keys) == pc.seenUpKeys.Cardinality() {
-		if !pc.AllDownKeysSeen() {
-			panic(fmt.Sprintf("I am confused. All up keys seen, but not all down keys. %s\n", pc.String()))
-		}
-		return true
-	}
-	return false
-}
-
-func (pc *partialCombo) String() string {
-	keys := make([]string, 0, len(pc.combo.Keys))
-	for _, key := range pc.combo.Keys {
-		keys = append(keys, keyToString(key))
-	}
-	outKeys := make([]string, 0, len(pc.combo.OutKeys))
-	for _, key := range pc.combo.OutKeys {
-		outKeys = append(outKeys, keyToString(key))
-	}
-	var seenDown []string
-	for _, key := range pc.seenDownKeys.ToSlice() {
-		seenDown = append(seenDown, keyToString(key))
-	}
-	var seenUp []string
-	for _, key := range pc.seenUpKeys.ToSlice() {
-		seenUp = append(seenUp, keyToString(key))
-	}
-	return fmt.Sprintf("[%s -> %s (seenDown %q seenUp %q)]",
-		strings.Join(keys, " "),
-		strings.Join(outKeys, " "),
-		strings.Join(seenDown, " "),
-		strings.Join(seenUp, " "),
-	)
+	return fmt.Sprintf("%+v -> %+v", strings.Join(keys, " "), strings.Join(out, " "))
 }
 
 func keyToString(key KeyCode) string {
 	return strings.TrimPrefix(evdev.KEYToString[key], "KEY_")
-}
-
-func partialCombosToString(partialCombos []*partialCombo) string {
-	s := make([]string, len(partialCombos))
-	for i, pc := range partialCombos {
-		s[i] = pc.String()
-	}
-	return strings.Join(s, " - ")
 }
 
 type EventReader interface {
@@ -508,7 +429,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 	if maxLength == 0 {
 		return fmt.Errorf("No combo contains keys")
 	}
-	state := NewState(maxLength, ew)
+	state := NewState(maxLength, ew, allCombos)
 	state.fakeActiveTimer = fakeActiveTimer
 	type eventAndErr struct {
 		evP *Event
@@ -550,7 +471,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 				fmt.Printf("    State: %s\n", state.String())
 			}
 
-			err = manInTheMiddleInnerLoop(evP, ew, state, allCombos)
+			err = manInTheMiddleInnerLoop(evP, ew, state)
 			if err != nil {
 				return err
 			}
@@ -562,9 +483,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 	}
 }
 
-func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
-	allCombos []*Combo,
-) error {
+func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State) error {
 	var err error
 	if evP.Type != evdev.EV_KEY {
 		// fmt.Printf(" skipping %s\n", evP.String())
@@ -574,29 +493,27 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State,
 		}
 		return nil
 	}
-	state.AssertValid()
 	switch evP.Value {
 	case UP:
-		err = state.HandleUpChar(*evP, allCombos)
+		err = state.HandleUpChar(*evP)
 	case DOWN:
-		err = state.HandleDownChar(*evP, allCombos)
+		err = state.HandleDownChar(*evP)
 	default:
 		return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
 	}
 	if err != nil {
 		return err
 	}
-	state.AssertValid()
 	return nil
 }
 
-func NewState(maxLength int, ew EventWriter) *State {
+func NewState(maxLength int, ew EventWriter, allCombos []*Combo) *State {
 	s := State{
-		outDev: ew,
+		outDev:    ew,
+		allCombos: allCombos,
 	}
 	s.buf = make([]Event, 0, maxLength)
 	s.fakeActiverTimerNextTime = maxTime
-	s.upKeysToSwallow = mapset.NewSet[KeyCode]()
 	return &s
 }
 
@@ -605,54 +522,194 @@ var maxTime = time.Unix(1<<63-62135596801, 999999999)
 
 type State struct {
 	buf                      []Event
+	allCombos                []*Combo
+	downKeysWritten          []*Combo
 	outDev                   EventWriter
-	partialCombos            []*partialCombo     // One down-key has matched, but not all down-keys have been seen yet.
-	upKeysMissing            []*partialCombo     // All down keys have been seen, but not all up keys.
-	activeTimer              <-chan time.Time    // fires N milliseconds after the last key-down-event.
-	fakeActiveTimer          bool                // In tests the activeTimer will be faked by reading the time of the next event.
-	fakeActiverTimerNextTime time.Time           // The next the fakeActiveTimer event will be fired.
-	upKeysToSwallow          mapset.Set[KeyCode] // if a combos was written but not all up-keys where seen yet, then swallow the up-keys which comes later.
+	activeTimer              <-chan time.Time // fires N milliseconds after the last key-down-event.
+	fakeActiveTimer          bool             // In tests the activeTimer will be faked by reading the time of the next event.
+	fakeActiverTimerNextTime time.Time        // The next the fakeActiveTimer event will be fired.
+}
+
+func (state *State) Eval(time syscall.Timeval) error {
+	combos := state.allCombos
+	codes := make([]evalResultCode, 0, len(combos))
+	for _, combo := range combos {
+		code, err := state.EvalCombo(combo)
+		if err != nil {
+			return fmt.Errorf("failed to eval combo: %w", err)
+		}
+		fmt.Printf("  EvalCombo %s %s\n", combo.String(), code)
+		codes = append(codes, code)
+	}
+	// Handle AllUpKeysSeen first
+	found := false
+	for i, code := range codes {
+		if code != AllUpKeysSeenCode {
+			continue
+		}
+		found = true
+		combo := combos[i]
+		err := state.WriteComboDownKeysNew(combo)
+		if err != nil {
+			return fmt.Errorf("failed to write combo (down): %w", err)
+		}
+		err = state.WriteComboUpKeysNew(combo)
+		if err != nil {
+			return fmt.Errorf("failed to write combo (up): %w", err)
+		}
+	}
+	if found {
+		return nil
+	}
+
+	// Handle AllDownKeysSeen
+	for i, code := range codes {
+		if code != AllDownKeysSeenCode {
+			continue
+		}
+		combo := combos[i]
+		found = true
+		if slices.Contains(state.downKeysWritten, combo) {
+			continue
+		}
+		err := state.WriteComboDownKeysNew(combo)
+		if err != nil {
+			return fmt.Errorf("failed to write combo (AllDownKeysSeen): %w", err)
+		}
+		state.downKeysWritten = append(state.downKeysWritten, combo)
+	}
+	if found {
+		return nil
+	}
+
+	// Handle ComboNotFinishedCode
+	for _, code := range codes {
+		if code != ComboNotFinishedCode {
+			continue
+		}
+		found = true
+	}
+	if found {
+		return nil
+	}
+
+	// no match. Flush buffer.
+	return state.FlushBuffer("Eval>No-match")
+}
+
+type evalResultCode string
+
+var (
+	NoMatchCode          evalResultCode = "NoMatch"
+	ErrorCode            evalResultCode = "Error"
+	ComboNotFinishedCode evalResultCode = "ComboNotFinished"
+	AllUpKeysSeenCode    evalResultCode = "AllUpKeysSeen"
+	AllDownKeysSeenCode  evalResultCode = "AllDownKeysSeen" // do not write the out-keys yet. It could be an unintended overlap.
+)
+
+func (state *State) EvalCombo(combo *Combo) (evalResultCode, error) {
+	// if there is a key which is not in combo.Keys, then it is not a match.
+	for _, ev := range state.buf {
+		if !slices.Contains(combo.Keys, ev.Code) {
+			return NoMatchCode, nil
+		}
+	}
+	// check if all down-keys are seen, and in the same order.
+	seenDown := make([]KeyCode, 0, len(combo.Keys))
+	seenUp := make([]KeyCode, 0, len(combo.Keys))
+	for _, ev := range state.buf {
+		switch ev.Value {
+		case DOWN:
+			seenDown = append(seenDown, ev.Code)
+		case UP:
+			seenUp = append(seenUp, ev.Code)
+		default:
+			return ErrorCode, fmt.Errorf("unexpected value %d", ev.Value)
+		}
+	}
+	for i, key := range combo.Keys {
+		if i >= len(seenDown) {
+			return ComboNotFinishedCode, nil
+		}
+		if seenDown[i] != key {
+			return NoMatchCode, nil
+		}
+		continue
+	}
+	if len(seenUp) == len(combo.Keys) {
+		return AllUpKeysSeenCode, nil
+	}
+	return AllDownKeysSeenCode, nil
 }
 
 // AfterTimer gets called N milliseconds after the last key-down-event.
 // If all down-keys got pressed (and held down, not all up-keys were seen yet),
 // then we need to fire the down events after some time.
 func (state *State) AfterTimer() error {
-	if len(state.upKeysMissing) == 0 {
-		// No combos were completed. Flush buffer and clear partial combos.
-		state.FlushBuffer("AfterTimer>No-completed-combo")
-		return nil
-	}
-	for _, pc := range state.upKeysMissing {
-		if !pc.downKeysWritten {
-			// All keys were pressed, but not all up-keys seen yet.
-			// Fire the down-keys for this combo.
-			state.WriteDownKeys(pc, "AfterTimer>up-keys-was-missing")
-		}
-	}
-	fmt.Printf("  AfterTimer>State: %s\n", state.String())
-	state.activeTimer = nil
-	state.fakeActiverTimerNextTime = maxTime
+	// if len(state.upKeysMissing) == 0 {
+	// 	// No combos were completed. Flush buffer and clear partial combos.
+	// 	state.FlushBuffer("AfterTimer>No-completed-combo")
+	// 	return nil
+	// }
+	// for _, pc := range state.upKeysMissing {
+	// 	if !pc.downKeysWritten {
+	// 		// All keys were pressed, but not all up-keys seen yet.
+	// 		// Fire the down-keys for this combo.
+	// 		state.WriteDownKeysOld(pc, "AfterTimer>up-keys-was-missing")
+	// 	}
+	// }
+	// fmt.Printf("  AfterTimer>State: %s\n", state.String())
+	// state.activeTimer = nil
+	// state.fakeActiverTimerNextTime = maxTime
 	return nil
 }
 
-func (state *State) WriteDownKeys(pc *partialCombo, reason string) error {
-	if pc.downKeysWritten {
-		panic(fmt.Sprintf("downKeysWritten already true. %s", pc.String()))
+func (state *State) WriteComboDownKeysNew(combo *Combo) error {
+	if slices.Contains(state.downKeysWritten, combo) {
+		// Down-Keys have already been written.
+		// Don't write them again.
+		return nil
 	}
-	combo := pc.combo
-	for i := range combo.OutKeys {
-		err := state.WriteEvent(Event{
-			Time:  pc.time,
+	// We don't remove events from the buffer. This gets done,
+	// when the corresponding up-keys are seen.
+	state.WriteKeys(combo, state.buf[0].Time, DOWN)
+	return nil
+}
+
+func (state *State) WriteComboUpKeysNew(combo *Combo) error {
+	if slices.Contains(state.downKeysWritten, combo) {
+		state.downKeysWritten = removeFromSlice(state.downKeysWritten, combo)
+	}
+
+	// This is the final action for this combo.
+	// Now the corresponding keys in the buffer get removed.
+	newBuf := make([]Event, 0, len(state.buf))
+	for _, ev := range state.buf {
+		if slices.Contains(combo.Keys, ev.Code) {
+			continue
+		}
+		newBuf = append(newBuf, ev)
+	}
+	state.WriteKeys(combo, state.buf[0].Time, UP)
+	state.buf = newBuf
+	return nil
+}
+
+type upDownValue = int32
+
+func (state *State) WriteKeys(combo *Combo, time syscall.Timeval, value upDownValue) error {
+	// first match. Use that timestamp to write out the combo.
+	for _, outKey := range combo.OutKeys {
+		err := state.WriteEvent(evdev.InputEvent{
+			Time:  time,
 			Type:  evdev.EV_KEY,
-			Code:  evdev.EvCode(combo.OutKeys[i]),
-			Value: DOWN,
-		}, reason+">WriteDownKeys")
+			Code:  outKey,
+			Value: value,
+		}, fmt.Sprintf("WriteCombo value=%v", value))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to write DOWN event: %w", err)
 		}
 	}
-	pc.downKeysWritten = true
 	return nil
 }
 
@@ -664,15 +721,6 @@ func (state *State) WriteEvent(ev Event, reason string) error {
 		Type: evdev.EV_SYN,
 		Code: evdev.SYN_REPORT,
 	}))
-}
-
-func (state *State) ContainsKey(key KeyCode) bool {
-	for i := range state.buf {
-		if state.buf[i].Code == evdev.EvCode(key) {
-			return true
-		}
-	}
-	return false
 }
 
 func (state *State) Len() int {
@@ -693,19 +741,17 @@ func (state *State) String() string {
 	if len(ret) == 0 {
 		ret = append(ret, "buf is empty")
 	}
-	ret = append(ret, "|| PartialCombos: "+partialCombosToString(state.partialCombos))
-	ret = append(ret, "|| upKeysMissing: "+partialCombosToString(state.upKeysMissing))
-	var swallow []string
-	for _, key := range state.upKeysToSwallow.ToSlice() {
-		swallow = append(swallow, keyToString(key))
+	ret = []string{strings.Join(ret, " ")}
+	downKeys := make([]string, 0, len(state.downKeysWritten))
+	for _, combo := range state.downKeysWritten {
+		downKeys = append(downKeys, combo.String())
 	}
-	ret = append(ret, "|| upKeysToSwallow: ["+strings.Join(swallow, ", ")+"]")
-	return strings.Join(ret, " ")
+	ret = append(ret, fmt.Sprintf("downKeysWritten: %v\n", downKeys))
+	return strings.Join(ret, " || ")
 }
 
 // The buffered events don't match a combo.
-// Write out the buffered events and the current event.
-// And set partialCombos to nil.
+// Write out the buffered events.
 func (state *State) FlushBuffer(reason string) error {
 	for _, bufEvent := range state.buf {
 		if err := state.WriteEvent(bufEvent, reason+">FlushBuffer"); err != nil {
@@ -713,8 +759,6 @@ func (state *State) FlushBuffer(reason string) error {
 		}
 	}
 	state.buf = nil
-	state.partialCombos = nil
-	state.upKeysMissing = nil
 	state.activeTimer = nil
 	state.fakeActiverTimerNextTime = maxTime
 	return nil
@@ -730,205 +774,14 @@ func (state *State) FlushBufferAndWriteEvent(ev Event, reason string) error {
 
 func (state *State) HandleUpChar(
 	ev Event,
-	allCombos []*Combo,
 ) error {
-	state.AssertValid()
-	defer state.AssertValid()
-	if state.Len() == 0 && len(state.upKeysMissing) == 0 {
-		if state.upKeysToSwallow.Contains(ev.Code) {
-			state.upKeysToSwallow.Remove(ev.Code)
-			return nil
-		}
-		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>no-combo-active")
-	}
-
-	upKeyWasWaitedFor := false
-	newUpKeysMissing := make([]*partialCombo, 0, len(state.upKeysMissing))
-	for _, upMissing := range state.upKeysMissing {
-		if upMissing.combo.matches(ev) {
-			upMissing.seenUpKeys.Add(ev.Code)
-			upKeyWasWaitedFor = true
-			if upMissing.AllUpKeysSeen() {
-				err := state.WritePartialCombo(upMissing, "HandleUpChar>upKey-was-waited-for")
-				if err != nil {
-					return fmt.Errorf("failed to write combo: %w", err)
-				}
-				continue
-			}
-		}
-		newUpKeysMissing = append(newUpKeysMissing, upMissing)
-	}
-	state.upKeysMissing = newUpKeysMissing
-	if upKeyWasWaitedFor {
-		return nil
-	}
-
-	// find corresponding down-event
-	var downEvent *Event
-	for i := range state.buf {
-		if state.buf[i].Value == DOWN && state.buf[i].Code == ev.Code {
-			downEvent = &state.buf[i]
-			break
-		}
-	}
-	if downEvent == nil {
-		if state.upKeysToSwallow.Contains(ev.Code) {
-			state.upKeysToSwallow.Remove(ev.Code)
-			return nil
-		}
-		// No corresponding downEvent. Swallow it out.
-		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>no-down-event")
-	}
-
-	if len(state.buf) == 1 && state.buf[0].Code == ev.Code && state.buf[0].Value == DOWN {
-		return state.FlushBufferAndWriteEvent(ev, "HandleUpChar>single-key-up")
-	}
-	// Check if the up-key is part of a active partialCombo
-	for _, pc := range state.partialCombos {
-		if !pc.combo.matches(ev) {
-			continue
-		}
-		pc.seenUpKeys.Add(ev.Code)
-		if pc.seenUpKeys.Cardinality() == len(pc.combo.Keys) {
-			panic(fmt.Sprintf(
-				"I am confused. All up keys seen. The pc should be in upKeysMissing not in partialCombos. %s\nState: %s",
-				pc.String(),
-				state.String()))
-		}
-	}
-	writeEventToBuffer := true
-	newUpkeysMissing := make([]*partialCombo, 0, len(state.upKeysMissing))
-	for _, pc := range state.upKeysMissing {
-		if !pc.combo.matches(ev) {
-			continue
-		}
-		if pc.AllUpKeysSeen() {
-			panic(fmt.Sprintf("I am confused. All up keys seen of pc in upKeysMissing? This should have been written out already  %s\nState: %s",
-				pc.String(),
-				state.String()))
-		}
-		pc.seenUpKeys.Add(ev.Code)
-		if pc.AllUpKeysSeen() {
-			err := state.WritePartialCombo(pc, "HandleUpChar>AllUpKeysSeen")
-			if err != nil {
-				return fmt.Errorf("failed to write combo: %w", err)
-			}
-			writeEventToBuffer = false
-			continue
-		}
-		newUpkeysMissing = append(newUpkeysMissing, pc)
-	}
-	state.upKeysMissing = newUpkeysMissing
-
-	// no combo was finished. Write event to buffer
-	if writeEventToBuffer {
-		state.buf = append(state.buf, ev)
-	}
-	return nil
-}
-
-func (state *State) WritePartialCombo(pc *partialCombo, reason string) error {
-	if !pc.AllDownKeysSeen() {
-		panic(fmt.Sprintf("I am confused. Not all down keys seen. %s", pc.String()))
-	}
-	combo := pc.combo
-	for _, outKey := range combo.OutKeys {
-		if !pc.downKeysWritten {
-			if err := state.WriteEvent(Event{
-				Time:  pc.time,
-				Type:  evdev.EV_KEY,
-				Code:  evdev.EvCode(outKey),
-				Value: DOWN,
-			}, reason+">WritePartialCombo-down("+pc.String()+")"); err != nil {
-				return err
-			}
-		}
-		if err := state.WriteEvent(Event{
-			Time:  pc.time,
-			Type:  evdev.EV_KEY,
-			Code:  evdev.EvCode(outKey),
-			Value: UP,
-		}, reason+">WritePartialCombo-up("+pc.String()+")"); err != nil {
-			return err
-		}
-
-	}
-	for _, downKey := range pc.seenDownKeys.ToSlice() {
-		if !pc.seenUpKeys.Contains(downKey) {
-			state.upKeysToSwallow.Add(downKey)
-			newBuf := make([]Event, 0, len(state.buf))
-			for _, bufEv := range state.buf {
-				if bufEv.Code == downKey {
-					continue
-				}
-				newBuf = append(newBuf, bufEv)
-			}
-			state.buf = newBuf
-		}
-	}
-	// Remove the events from the buffer.
-	newBuf := make([]Event, 0, len(state.buf))
-	for _, ev := range state.buf {
-		if pc.seenUpKeys.Contains(ev.Code) {
-			continue
-		}
-		if ev.Value == DOWN {
-			// remove down events of the combo, if there is no related partialCombo.
-			keep := false
-			for _, pCombo := range state.partialCombos {
-				if pCombo.seenDownKeys.Contains(ev.Code) {
-					keep = true
-					break
-				}
-			}
-			for _, pCombo := range state.upKeysMissing {
-				if pCombo.seenDownKeys.Contains(ev.Code) {
-					keep = true
-					break
-				}
-			}
-			if !keep {
-				continue
-			}
-		}
-		newBuf = append(newBuf, ev)
-	}
-	state.buf = newBuf
-
-	// remove partialCombos from the list which are not longer part
-	// of the new buffer.
-	newPartialCombos := make([]*partialCombo, 0, len(state.partialCombos))
-	for _, pc := range state.partialCombos {
-		matches := false
-		for _, key := range pc.seenDownKeys.ToSlice() {
-			for _, ev := range state.buf {
-				if ev.Code == key {
-					matches = true
-					break
-				}
-			}
-			if matches {
-				break
-			}
-		}
-		if !matches {
-			fmt.Printf("  WritePartialCombo Removing  partialCombos %s\n", pc.String())
-			continue
-		}
-		newPartialCombos = append(newPartialCombos, pc)
-	}
-	state.partialCombos = newPartialCombos
-
-	fmt.Printf("  End of WritePartialCombo (%s) State: %s\n", pc.String(), state.String())
-	return nil
+	state.buf = append(state.buf, ev)
+	return state.Eval(ev.Time)
 }
 
 func (state *State) HandleDownChar(
 	ev Event,
-	allCombos []*Combo,
 ) error {
-	state.AssertValid()
-	defer state.AssertValid()
 	timeoutAfterDownDuration := 150 * time.Millisecond
 	if state.fakeActiveTimer {
 		// For testing.
@@ -936,117 +789,9 @@ func (state *State) HandleDownChar(
 	} else {
 		state.activeTimer = time.After(timeoutAfterDownDuration)
 	}
+
 	state.buf = append(state.buf, ev)
-	// Filter the existing open partialCombos.
-	// Skip partialCombos which don't match to an event in the buffer.
-	var newPartialCombos []*partialCombo
-	for _, pc := range state.partialCombos {
-		match := false
-		for _, bufEvent := range state.buf {
-			if pc.combo.matches(bufEvent) {
-				match = true
-				break
-			}
-		}
-		if !match {
-			// This partialCombo is not active anymore.
-			continue
-		}
-		if slices.Contains(pc.combo.Keys, ev.Code) && !pc.seenDownKeys.Contains(ev.Code) {
-			pc.seenDownKeys.Add(ev.Code)
-		}
-		if pc.AllDownKeysSeen() {
-			// this combo is completed, but the up-keys are not seen yet.
-			state.upKeysMissing = append(state.upKeysMissing, pc)
-			continue
-		}
-		newPartialCombos = append(newPartialCombos, pc)
-	}
-
-	// Does this key start a new combo?
-	for _, combo := range allCombos {
-		if !combo.matches(ev) {
-			continue
-		}
-		// Skip this combo, if it is already active
-		skip := false
-		for _, pc := range newPartialCombos {
-			if pc.combo == combo {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-		for _, pc := range state.upKeysMissing {
-			if pc.combo == combo {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-
-		// This is the only place where new partialCombos are created.
-		// Be sure to always use pointers to a partialCombo.
-		pc := newPartialCombo(combo, &ev)
-		newPartialCombos = append(newPartialCombos, pc)
-	}
-	state.partialCombos = newPartialCombos
-	if len(state.partialCombos) == 0 && len(state.upKeysMissing) == 0 {
-		// No combo is matched.
-		return state.FlushBuffer("no combo matched")
-	}
-
-	// Write key-up event for upKeysMissing pcs,
-	// if the current key does not match the.
-	newUpkeysMissing := make([]*partialCombo, 0, len(state.upKeysMissing))
-	reFilterUpKeysMissing := false
-	for _, pc := range state.upKeysMissing {
-		if !pc.combo.matches(ev) && pc.AllDownKeysSeen() {
-			err := state.WritePartialCombo(pc, "HandleDownChar>AllDownKeysSeen")
-			if err != nil {
-				return fmt.Errorf("failed to write combo: %s. %w", state.String(), err)
-			}
-			fmt.Printf("  HandleDownChar Removing upKeysMissing %s\n", pc.String())
-			reFilterUpKeysMissing = true
-			continue
-		}
-		newUpkeysMissing = append(newUpkeysMissing, pc)
-	}
-	state.upKeysMissing = newUpkeysMissing
-	state.AssertValid()
-	if reFilterUpKeysMissing {
-		// state.buf got some events removed. Re-filter the upKeysMissing.
-		// Keep only combos which are still active.
-		newUpkeysMissing2 := make([]*partialCombo, 0, len(state.upKeysMissing))
-		for _, pc := range state.upKeysMissing {
-			keep := false
-			for _, bufEvent := range state.buf {
-				if pc.combo.matches(bufEvent) {
-					keep = true
-					break
-				}
-			}
-			if pc.combo.matches(ev) {
-				keep = true
-			}
-			if state.upKeysToSwallow.ContainsAny(pc.seenDownKeys.ToSlice()...) {
-				keep = true
-			}
-
-			if keep {
-				newUpkeysMissing2 = append(newUpkeysMissing2, pc)
-				continue
-			}
-			fmt.Printf("  HandleDownChar reFilterUpKeysMissing Removing upKeysMissing %s. State: %s\n", pc.String(), state.String())
-		}
-		state.upKeysMissing = newUpkeysMissing2
-	}
-	state.AssertValid()
-	return nil
+	return state.Eval(ev.Time)
 }
 
 func csv(sourceDev *evdev.InputDevice) error {
@@ -1328,79 +1073,13 @@ func combos(yamlFile string, dev *evdev.InputDevice, debug bool) error {
 	return manInTheMiddle(dev, outDev, combos, debug, false)
 }
 
-func (state *State) AssertValid() {
-	for _, pc := range state.upKeysMissing {
-		if pc.AllUpKeysSeen() {
-			panic(fmt.Sprintf("I am confused. All up keys seen of upKeyMissing %s. %s", pc.String(), state.String()))
-		}
-		if !pc.AllDownKeysSeen() {
-			panic(fmt.Sprintf("I am confused. upKeysMissing contains a pc which has not seen all down keys %s. State: %s",
-				pc.String(), state.String()))
-		}
-		for _, key := range pc.seenDownKeys.ToSlice() {
-			if !slices.Contains(pc.combo.Keys, key) {
-				panic(fmt.Sprintf("I am confused. seenDownKeys contains a key which is not in the combo %s %s",
-					evdev.KEYToString[key], pc.String()))
-			}
-		}
-		if pc.seenDownKeys.Cardinality() < pc.seenUpKeys.Cardinality() {
-			panic(fmt.Sprintf("I am confused. seenDownKeys < seenUpKeys of pc %s. %s", pc.String(), state.String()))
-		}
-
-	}
-	if len(state.buf) == 0 && len(state.partialCombos) != 0 {
-		panic(fmt.Sprintf("I am confused. Buffer is empty, and there are partialCombos: %s", state.String()))
-	}
-	for _, ev := range state.buf {
-		if ev.Value == DOWN {
+func removeFromSlice[T comparable](s []T, elem T) []T {
+	newSlice := make([]T, 0, len(s))
+	for i := range s {
+		if s[i] == elem {
 			continue
 		}
-		found := false
-		for _, pc := range state.partialCombos {
-			if slices.Contains(pc.combo.Keys, ev.Code) {
-				found = true
-				break
-			}
-		}
-		if found {
-			continue
-		}
-		for _, pc := range state.upKeysMissing {
-			if slices.Contains(pc.combo.Keys, ev.Code) {
-				found = true
-				break
-			}
-		}
-		if found {
-			continue
-		}
-		if state.upKeysToSwallow.Contains(ev.Code) {
-			continue
-		}
-		panic(fmt.Sprintf(`state.buf contains a event.Code (up) (%s) which is not in any partialCombos or upKeysMissing. %s`,
-			eventKeyToString(&ev), state.String()))
+		newSlice = append(newSlice, s[i])
 	}
-
-	for _, pc := range state.partialCombos {
-		if pc.seenDownKeys.Cardinality() == 0 {
-			panic(fmt.Sprintf("I am confused. seenDownKeys is empty %s", state.String()))
-		}
-		if pc.seenDownKeys.Cardinality() < pc.seenUpKeys.Cardinality() {
-			panic(fmt.Sprintf("I am confused. seenDownKeys < seenUpKeys of pc %s. %s", pc.String(), state.String()))
-		}
-		if pc.AllDownKeysSeen() {
-			panic(fmt.Sprintf("I am confused. All keys of pc %s are seen. %s", pc.String(), state.String()))
-		}
-	}
-
-	// upKeysMissing and partialCombos should not have any common entries.
-	intersection := make([]*partialCombo, 0)
-	for _, pc := range state.partialCombos {
-		if slices.Contains(state.upKeysMissing, pc) {
-			intersection = append(intersection, pc)
-		}
-	}
-	if len(intersection) > 0 {
-		panic(fmt.Sprintf("I am confused. There are entries in upKeysMissing and partialCombos %v", intersection))
-	}
+	return newSlice
 }

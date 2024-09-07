@@ -104,14 +104,14 @@ func NewReadFromSlice(csvString string) (*readFromSlice, error) {
 
 var _ = EventReader(&readFromSlice{})
 
-var asdfTestEvents = `1712518531;862966;EV_KEY;KEY_A;down
-1712518532;22233;EV_KEY;KEY_A;up
-1712518532;478346;EV_KEY;KEY_S;down
-1712518532;637660;EV_KEY;KEY_S;up
-1712518533;35798;EV_KEY;KEY_D;down
-1712518533;132219;EV_KEY;KEY_D;up
-1712518533;948232;EV_KEY;KEY_F;down
-1712518534;116984;EV_KEY;KEY_F;up
+var asdfTestEvents = `1712500001;862966;EV_KEY;KEY_A;down
+1712500002;22233;EV_KEY;KEY_A;up
+1712500002;478346;EV_KEY;KEY_S;down
+1712500002;637660;EV_KEY;KEY_S;up
+1712500003;35798;EV_KEY;KEY_D;down
+1712500003;132219;EV_KEY;KEY_D;up
+1712500003;948232;EV_KEY;KEY_F;down
+1712500004;116984;EV_KEY;KEY_F;up
 `
 
 var fjkCombos = []*Combo{
@@ -163,14 +163,14 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 
 func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
 	AssertComboInputOutput(t, `
-	1712519050;000000;EV_KEY;KEY_B;down
-	1712519050;020000;EV_KEY;KEY_B;up
-	1712519050;700000;EV_KEY;KEY_J;down
-	1712519050;720000;EV_KEY;KEY_F;down
-	1712519051;100000;EV_KEY;KEY_F;up
-	1712519051;110000;EV_KEY;KEY_J;up
-	1712519051;800000;EV_KEY;KEY_C;down
-	1712519051;900000;EV_KEY;KEY_C;up
+	1712500000;000000;EV_KEY;KEY_B;down
+	1712500000;020000;EV_KEY;KEY_B;up
+	1712500000;700000;EV_KEY;KEY_F;down
+	1712500000;720000;EV_KEY;KEY_J;down
+	1712500001;100000;EV_KEY;KEY_J;up
+	1712500001;110000;EV_KEY;KEY_F;up
+	1712500001;800000;EV_KEY;KEY_C;down
+	1712500001;900000;EV_KEY;KEY_C;up
 	`,
 		`
 	B-down
@@ -184,10 +184,10 @@ func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
 
 func Test_manInTheMiddle_SingleCombo_OneEmbrachingMatch(t *testing.T) {
 	AssertComboInputOutput(t, `
-	1712519053;827714;EV_KEY;KEY_J;down
-	1712519053;849844;EV_KEY;KEY_F;down
-	1712519054;320867;EV_KEY;KEY_F;up
-	1712519054;321153;EV_KEY;KEY_J;up
+	1712500003;827714;EV_KEY;KEY_F;down
+	1712500003;849844;EV_KEY;KEY_J;down
+	1712500004;320867;EV_KEY;KEY_J;up
+	1712500004;321153;EV_KEY;KEY_F;up
 	`,
 		`
 	X-down
@@ -198,12 +198,12 @@ func Test_manInTheMiddle_SingleCombo_OneEmbrachingMatch(t *testing.T) {
 
 func Test_manInTheMiddle_ComboWithMatch_CrossRhyme(t *testing.T) {
 	AssertComboInputOutput(t, `
-	1712519050;700000;EV_KEY;KEY_J;down
-	1712519050;720000;EV_KEY;KEY_F;down
-	1712519051;100000;EV_KEY;KEY_J;up
-	1712519051;110000;EV_KEY;KEY_F;up
-	1712519051;800000;EV_KEY;KEY_C;down
-	1712519051;900000;EV_KEY;KEY_C;up
+	1712500000;700000;EV_KEY;KEY_F;down
+	1712500000;720000;EV_KEY;KEY_J;down
+	1712500001;100000;EV_KEY;KEY_F;up
+	1712500001;110000;EV_KEY;KEY_J;up
+	1712500001;800000;EV_KEY;KEY_C;down
+	1712500001;900000;EV_KEY;KEY_C;up
 	`,
 		`
 	X-down
@@ -229,10 +229,10 @@ func Test_manInTheMiddle_ComboWithMatch_OverlapNoCombo(t *testing.T) {
 	// short overlap between K-down and F-up.
 	// This is F followed by K, not a combo.
 	AssertComboInputOutput(t, `
-	1712519053;827714;EV_KEY;KEY_F;down
-	1712519054;320840;EV_KEY;KEY_K;down
-	1712519054;320860;EV_KEY;KEY_F;up
-	1712519054;321153;EV_KEY;KEY_K;up
+	1712500003;827714;EV_KEY;KEY_F;down
+	1712500004;320840;EV_KEY;KEY_K;down
+	1712500004;320860;EV_KEY;KEY_F;up
+	1712500004;321153;EV_KEY;KEY_K;up
 	`,
 		`
 	F-down
@@ -244,10 +244,10 @@ func Test_manInTheMiddle_ComboWithMatch_OverlapNoCombo(t *testing.T) {
 
 func Test_manInTheMiddle_WithoutMatch(t *testing.T) {
 	AssertComboInputOutput(t, `
-	1712519050;700000;EV_KEY;KEY_K;down
-	1712519050;820000;EV_KEY;KEY_K;up
-	1712519050;830000;EV_KEY;KEY_F;down
-	1712519050;840000;EV_KEY;KEY_F;up
+	1712500000;700000;EV_KEY;KEY_K;down
+	1712500000;820000;EV_KEY;KEY_K;up
+	1712500000;830000;EV_KEY;KEY_F;down
+	1712500000;840000;EV_KEY;KEY_F;up
 	`,
 		`
 	K-down
@@ -259,14 +259,14 @@ func Test_manInTheMiddle_WithoutMatch(t *testing.T) {
 
 func Test_manInTheMiddle_TwoComboWithSingleMatch(t *testing.T) {
 	AssertComboInputOutput(t, `
-	1712519050;000000;EV_KEY;KEY_B;down
-	1712519050;020000;EV_KEY;KEY_B;up
-	1712519050;700000;EV_KEY;KEY_J;down
-	1712519050;720000;EV_KEY;KEY_F;down
-	1712519051;100000;EV_KEY;KEY_F;up
-	1712519051;110000;EV_KEY;KEY_J;up
-	1712519051;800000;EV_KEY;KEY_C;down
-	1712519051;900000;EV_KEY;KEY_C;up
+	1712500000;000000;EV_KEY;KEY_B;down
+	1712500000;020000;EV_KEY;KEY_B;up
+	1712500000;700000;EV_KEY;KEY_F;down
+	1712500000;720000;EV_KEY;KEY_J;down
+	1712500001;100000;EV_KEY;KEY_J;up
+	1712500001;110000;EV_KEY;KEY_F;up
+	1712500001;800000;EV_KEY;KEY_C;down
+	1712500001;900000;EV_KEY;KEY_C;up
 	`,
 		`
 	B-down
@@ -318,12 +318,12 @@ func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	// This test is to ensure that no panic happens.
 	// Output could be different.
 	AssertComboInputOutput(t, `
-	1712519050;000000;EV_KEY;KEY_F;down
-	1712519050;064000;EV_KEY;KEY_K;down
-	1712519050;128000;EV_KEY;KEY_F;up
-	1712519050;144000;EV_KEY;KEY_J;down
-	1712519050;208000;EV_KEY;KEY_K;up
-	1712519050;224000;EV_KEY;KEY_F;down
+	1712500000;000000;EV_KEY;KEY_F;down
+	1712500000;064000;EV_KEY;KEY_K;down
+	1712500000;128000;EV_KEY;KEY_F;up
+	1712500000;144000;EV_KEY;KEY_J;down
+	1712500000;208000;EV_KEY;KEY_K;up
+	1712500000;224000;EV_KEY;KEY_F;down
 `,
 		// The input is quite crazy. This tests ensures that no panic happens.
 		// Changes are allowed to alter the output.
@@ -333,4 +333,45 @@ func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	J-down
 	F-down
 	`, fjkCombos)
+}
+
+var orderedCombos = []*Combo{
+	{
+		Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
+		OutKeys: []KeyCode{evdev.KEY_X},
+	},
+	{
+		Keys:    []KeyCode{evdev.KEY_J, evdev.KEY_F},
+		OutKeys: []KeyCode{evdev.KEY_A},
+	},
+	{
+		Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_K},
+		OutKeys: []KeyCode{evdev.KEY_Y},
+	},
+	{
+		Keys:    []KeyCode{evdev.KEY_J, evdev.KEY_K},
+		OutKeys: []KeyCode{evdev.KEY_B},
+	},
+}
+
+func Test_orderedCombos(t *testing.T) {
+	AssertComboInputOutput(t,
+		`
+	1712500000;000000;EV_KEY;KEY_F;down
+	1712500000;060000;EV_KEY;KEY_J;down
+	1712500000;120000;EV_KEY;KEY_F;up
+	1712500000;144000;EV_KEY;KEY_J;up
+
+	1712500001;000000;EV_KEY;KEY_J;down
+	1712500001;060000;EV_KEY;KEY_F;down
+	1712500001;120000;EV_KEY;KEY_J;up
+	1712500001;144000;EV_KEY;KEY_F;up
+	`,
+		`
+		X-down
+		X-up
+		A-down
+		A-up
+	`,
+		orderedCombos)
 }
