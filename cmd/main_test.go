@@ -161,6 +161,8 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 	})
 }
 
+////////////////////////////////////////////////
+
 func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
 	AssertComboInputOutput(t, `
 	1712500000;000000;EV_KEY;KEY_B;down
@@ -230,15 +232,15 @@ func Test_manInTheMiddle_ComboWithMatch_OverlapNoCombo(t *testing.T) {
 	// This is F followed by K, not a combo.
 	AssertComboInputOutput(t, `
 	1712500003;827714;EV_KEY;KEY_F;down
-	1712500004;320840;EV_KEY;KEY_K;down
+	1712500004;320840;EV_KEY;KEY_J;down
 	1712500004;320860;EV_KEY;KEY_F;up
-	1712500004;321153;EV_KEY;KEY_K;up
+	1712500004;321153;EV_KEY;KEY_J;up
 	`,
 		`
 	F-down
-	K-down
+	J-down
 	F-up
-	K-up
+	J-up
 	`, fjkCombos)
 }
 
@@ -360,12 +362,12 @@ func Test_orderedCombos(t *testing.T) {
 	1712500000;000000;EV_KEY;KEY_F;down
 	1712500000;060000;EV_KEY;KEY_J;down
 	1712500000;120000;EV_KEY;KEY_F;up
-	1712500000;144000;EV_KEY;KEY_J;up
+	1712500000;200000;EV_KEY;KEY_J;up
 
 	1712500001;000000;EV_KEY;KEY_J;down
 	1712500001;060000;EV_KEY;KEY_F;down
 	1712500001;120000;EV_KEY;KEY_J;up
-	1712500001;144000;EV_KEY;KEY_F;up
+	1712500001;200000;EV_KEY;KEY_F;up
 	`,
 		`
 		X-down

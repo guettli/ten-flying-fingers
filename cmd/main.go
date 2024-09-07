@@ -27,9 +27,9 @@ type Event = evdev.InputEvent
 type KeyCode = evdev.EvCode // for exmaple KEY_A, KEY_B, ...
 
 // timSub calculates the duration. The event "first" must be younger.
-func timeSub(first, second Event) time.Duration {
-	t1 := syscallTimevalToTime(first.Time)
-	t2 := syscallTimevalToTime(second.Time)
+func timeSub(first, second syscall.Timeval) time.Duration {
+	t1 := syscallTimevalToTime(first)
+	t2 := syscallTimevalToTime(second)
 	diff := t2.Sub(t1)
 	if diff < 0 {
 		panic(fmt.Sprintf("I am confused. timeSub should be a positive duration: diff=%v t1=%v t2=%v", diff, t1, t2))
@@ -37,7 +37,14 @@ func timeSub(first, second Event) time.Duration {
 	return diff
 }
 
-var keyEventValueToString = []string{"/", "_", "="}
+var (
+	eventValueToShortString = []string{"/", "_", "="}
+	eventValueToString      = map[int32]string{
+		UP:     "up",
+		DOWN:   "down",
+		REPEAT: "repeat",
+	}
+)
 
 func listDevices() string {
 	basePath := "/dev/input"
@@ -411,6 +418,14 @@ func keyToString(key KeyCode) string {
 	return strings.TrimPrefix(evdev.KEYToString[key], "KEY_")
 }
 
+func SliceOfKeysToString(keys []KeyCode) string {
+	s := make([]string, 0, len(keys))
+	for _, key := range keys {
+		s = append(s, keyToString(key))
+	}
+	return "[" + strings.Join(s, " ") + "]"
+}
+
 type EventReader interface {
 	ReadOne() (*Event, error)
 }
@@ -468,7 +483,6 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 			}
 			if debug {
 				fmt.Printf("\n|>>%s", eventToCsvLine(*evP))
-				fmt.Printf("    State: %s\n", state.String())
 			}
 
 			err = manInTheMiddleInnerLoop(evP, ew, state)
@@ -509,8 +523,9 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State) error {
 
 func NewState(maxLength int, ew EventWriter, allCombos []*Combo) *State {
 	s := State{
-		outDev:    ew,
-		allCombos: allCombos,
+		outDev:             ew,
+		allCombos:          allCombos,
+		minOverlapDuration: 80 * time.Millisecond,
 	}
 	s.buf = make([]Event, 0, maxLength)
 	s.fakeActiverTimerNextTime = maxTime
@@ -524,6 +539,8 @@ type State struct {
 	buf                      []Event
 	allCombos                []*Combo
 	downKeysWritten          []*Combo
+	swallowKeys              []KeyCode
+	minOverlapDuration       time.Duration
 	outDev                   EventWriter
 	activeTimer              <-chan time.Time // fires N milliseconds after the last key-down-event.
 	fakeActiveTimer          bool             // In tests the activeTimer will be faked by reading the time of the next event.
@@ -531,20 +548,38 @@ type State struct {
 }
 
 func (state *State) Eval(time syscall.Timeval) error {
+	fmt.Printf("Eval %s\n", state.String())
+	if len(state.buf) == 2 && len(state.swallowKeys) > 0 {
+		newSwallowKeys := make([]KeyCode, 0, len(state.swallowKeys))
+		doSwallow := false
+		for _, key := range state.swallowKeys {
+			if state.buf[0].Code == key && state.buf[1].Code == key {
+				doSwallow = true
+				continue
+			}
+			newSwallowKeys = append(newSwallowKeys, key)
+		}
+		if doSwallow {
+			state.swallowKeys = newSwallowKeys
+			fmt.Printf("  SwallowKeys: %s\n", state.String())
+			state.buf = nil
+			return nil
+		}
+	}
 	combos := state.allCombos
-	codes := make([]evalResultCode, 0, len(combos))
+	codes := make([]evalResult, 0, len(combos))
 	for _, combo := range combos {
-		code, err := state.EvalCombo(combo)
+		code, msg, err := state.EvalCombo(combo, time)
 		if err != nil {
 			return fmt.Errorf("failed to eval combo: %w", err)
 		}
-		fmt.Printf("  EvalCombo %s %s\n", combo.String(), code)
+		fmt.Printf("  EvalCombo %s %s: %s\n", combo.String(), code, msg)
 		codes = append(codes, code)
 	}
-	// Handle AllUpKeysSeen first
+	// Handle WriteUpKeys first
 	found := false
 	for i, code := range codes {
-		if code != AllUpKeysSeenCode {
+		if code != WriteUpKeys {
 			continue
 		}
 		found = true
@@ -563,8 +598,8 @@ func (state *State) Eval(time syscall.Timeval) error {
 	}
 
 	// Handle AllDownKeysSeen
-	for i, code := range codes {
-		if code != AllDownKeysSeenCode {
+	for i := range codes {
+		if codes[i] != AllDownKeysSeen {
 			continue
 		}
 		combo := combos[i]
@@ -584,7 +619,7 @@ func (state *State) Eval(time syscall.Timeval) error {
 
 	// Handle ComboNotFinishedCode
 	for _, code := range codes {
-		if code != ComboNotFinishedCode {
+		if code != ComboNotFinished {
 			continue
 		}
 		found = true
@@ -597,53 +632,89 @@ func (state *State) Eval(time syscall.Timeval) error {
 	return state.FlushBuffer("Eval>No-match")
 }
 
-type evalResultCode string
+type evalResult string
 
 var (
-	NoMatchCode          evalResultCode = "NoMatch"
-	ErrorCode            evalResultCode = "Error"
-	ComboNotFinishedCode evalResultCode = "ComboNotFinished"
-	AllUpKeysSeenCode    evalResultCode = "AllUpKeysSeen"
-	AllDownKeysSeenCode  evalResultCode = "AllDownKeysSeen" // do not write the out-keys yet. It could be an unintended overlap.
+	NoMatch                          evalResult = "NoMatch"
+	Error                            evalResult = "Error"
+	ComboNotFinished                 evalResult = "ComboNotFinished"
+	WriteUpKeys                      evalResult = "WriteUpKeys"
+	AllDownKeysSeen                  evalResult = "AllDownKeysSeen" // do not write the out-keys yet. It could be an unintended overlap.
+	AllDownKeysSeenAndAlreadyWritten evalResult = "AllDownKeysSeenAndAlreadyWritten"
 )
 
-func (state *State) EvalCombo(combo *Combo) (evalResultCode, error) {
-	// if there is a key which is not in combo.Keys, then it is not a match.
-	for _, ev := range state.buf {
-		if !slices.Contains(combo.Keys, ev.Code) {
-			return NoMatchCode, nil
-		}
-	}
+func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResult, string, error) {
 	// check if all down-keys are seen, and in the same order.
 	seenDown := make([]KeyCode, 0, len(combo.Keys))
 	seenUp := make([]KeyCode, 0, len(combo.Keys))
+	var lastDownTime *syscall.Timeval
+	var firstUpTime *syscall.Timeval
+	var unknownKey *KeyCode
 	for _, ev := range state.buf {
+		if !slices.Contains(combo.Keys, ev.Code) {
+			unknownKey = &ev.Code
+			break
+		}
 		switch ev.Value {
 		case DOWN:
+			lastDownTime = &ev.Time
 			seenDown = append(seenDown, ev.Code)
 		case UP:
+			if firstUpTime == nil {
+				firstUpTime = &ev.Time
+			}
 			seenUp = append(seenUp, ev.Code)
 		default:
-			return ErrorCode, fmt.Errorf("unexpected value %d", ev.Value)
+			return Error, "", fmt.Errorf("unexpected value %d", ev.Value)
 		}
+	}
+	if len(seenDown) == 0 {
+		return NoMatch, "No down-keys seen", nil
 	}
 	for i, key := range combo.Keys {
 		if i >= len(seenDown) {
-			return ComboNotFinishedCode, nil
+			// Not all down-keys are seen.
+			return ComboNotFinished,
+				fmt.Sprintf("seenDown %s", SliceOfKeysToString(seenDown)),
+				nil
 		}
 		if seenDown[i] != key {
-			return NoMatchCode, nil
+			// Order is wrong. For example "J F" instead of "F J".
+			return NoMatch, fmt.Sprintf("Order is wrong %s", SliceOfKeysToString(seenDown)), nil
 		}
-		continue
 	}
-	if len(seenUp) == len(combo.Keys) {
-		return AllUpKeysSeenCode, nil
+
+	// All down-keys are seen.
+
+	if firstUpTime != nil {
+		overlapDuration := timeSub(*lastDownTime, *firstUpTime)
+		if overlapDuration < 40*time.Millisecond {
+			return NoMatch, fmt.Sprintf("Overlap too short %s", overlapDuration), nil
+		}
 	}
-	return AllDownKeysSeenCode, nil
+	if unknownKey != nil && len(seenUp) == 0 {
+		// We have seen the down-keys, but there is an unknown key in the buffer.
+		// The combo will never be completed.
+		return NoMatch, "Unknown key in buffer: " + keyToString(*unknownKey), nil
+	}
+	age := timeSub(*lastDownTime, currTime)
+	minAge := 140 * time.Millisecond
+	if age < minAge {
+		// All in-down-keys are seen. But wait some milliseconds before writing the out-down-keys.
+		return ComboNotFinished,
+			fmt.Sprintf("All down seen, but too young (lastDown..currTime minAge %s): %s", minAge.String(), age.String()), nil
+	}
+	if len(seenUp) > 0 {
+		return WriteUpKeys, fmt.Sprintf("WriteUpKeys. Finished %s", SliceOfKeysToString(seenUp)), nil
+	}
+	if slices.Contains(state.downKeysWritten, combo) {
+		return AllDownKeysSeenAndAlreadyWritten, "", nil
+	}
+	return AllDownKeysSeen, "All down seen. Write the out-down-keys", nil
 }
 
 // AfterTimer gets called N milliseconds after the last key-down-event.
-// If all down-keys got pressed (and held down, not all up-keys were seen yet),
+// If all down-keys got pressed (and held down, no up-keys were seen yet),
 // then we need to fire the down events after some time.
 func (state *State) AfterTimer() error {
 	// if len(state.upKeysMissing) == 0 {
@@ -672,7 +743,7 @@ func (state *State) WriteComboDownKeysNew(combo *Combo) error {
 	}
 	// We don't remove events from the buffer. This gets done,
 	// when the corresponding up-keys are seen.
-	state.WriteKeys(combo, state.buf[0].Time, DOWN)
+	state.WriteCombo(combo, state.buf[0].Time, DOWN)
 	return nil
 }
 
@@ -680,24 +751,36 @@ func (state *State) WriteComboUpKeysNew(combo *Combo) error {
 	if slices.Contains(state.downKeysWritten, combo) {
 		state.downKeysWritten = removeFromSlice(state.downKeysWritten, combo)
 	}
-
+	seenUp := make([]KeyCode, 0, len(combo.Keys))
+	for _, ev := range state.buf {
+		if slices.Contains(combo.Keys, ev.Code) && ev.Value == UP {
+			seenUp = append(seenUp, ev.Code)
+		}
+	}
+	missingUp := make([]KeyCode, 0, len(combo.Keys))
+	for _, key := range combo.Keys {
+		if !slices.Contains(seenUp, key) {
+			missingUp = append(missingUp, key)
+		}
+	}
+	state.swallowKeys = append(state.swallowKeys, missingUp...)
 	// This is the final action for this combo.
 	// Now the corresponding keys in the buffer get removed.
 	newBuf := make([]Event, 0, len(state.buf))
 	for _, ev := range state.buf {
-		if slices.Contains(combo.Keys, ev.Code) {
+		if slices.Contains(seenUp, ev.Code) {
 			continue
 		}
 		newBuf = append(newBuf, ev)
 	}
-	state.WriteKeys(combo, state.buf[0].Time, UP)
+	state.WriteCombo(combo, state.buf[0].Time, UP)
 	state.buf = newBuf
 	return nil
 }
 
 type upDownValue = int32
 
-func (state *State) WriteKeys(combo *Combo, time syscall.Timeval, value upDownValue) error {
+func (state *State) WriteCombo(combo *Combo, time syscall.Timeval, value upDownValue) error {
 	// first match. Use that timestamp to write out the combo.
 	for _, outKey := range combo.OutKeys {
 		err := state.WriteEvent(evdev.InputEvent{
@@ -705,7 +788,7 @@ func (state *State) WriteKeys(combo *Combo, time syscall.Timeval, value upDownVa
 			Type:  evdev.EV_KEY,
 			Code:  outKey,
 			Value: value,
-		}, fmt.Sprintf("WriteCombo value=%v", value))
+		}, fmt.Sprintf("WriteCombo %s %s", eventValueToString[value], combo.String()))
 		if err != nil {
 			return fmt.Errorf("failed to write DOWN event: %w", err)
 		}
@@ -714,7 +797,7 @@ func (state *State) WriteKeys(combo *Combo, time syscall.Timeval, value upDownVa
 }
 
 func (state *State) WriteEvent(ev Event, reason string) error {
-	fmt.Printf("  write %s %s %s\n", eventKeyToString(&ev), reason, state.String())
+	fmt.Printf("  write %s %s\n", eventToString(&ev), reason)
 	err := state.outDev.WriteOne(&ev)
 	return errors.Join(err, state.outDev.WriteOne(&Event{
 		Time: ev.Time,
@@ -733,9 +816,9 @@ func (state *State) String() string {
 	for i := range state.buf {
 		ev := state.buf[i]
 		if prev != nil {
-			ret = append(ret, fmt.Sprintf("(%s)", timeSub(*prev, ev).String()))
+			ret = append(ret, fmt.Sprintf("(%s)", timeSub(prev.Time, ev.Time).String()))
 		}
-		ret = append(ret, eventKeyToString(&ev))
+		ret = append(ret, eventToString(&ev))
 		prev = &ev
 	}
 	if len(ret) == 0 {
@@ -746,8 +829,9 @@ func (state *State) String() string {
 	for _, combo := range state.downKeysWritten {
 		downKeys = append(downKeys, combo.String())
 	}
-	ret = append(ret, fmt.Sprintf("downKeysWritten: %v\n", downKeys))
-	return strings.Join(ret, " || ")
+	ret = append(ret, fmt.Sprintf("downKeysWritten: %v", downKeys))
+	ret = append(ret, fmt.Sprintf("swallowKeys: %v", SliceOfKeysToString(state.swallowKeys)))
+	return strings.Join(ret, " ")
 }
 
 // The buffered events don't match a combo.
@@ -871,7 +955,7 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 		var s string
 		switch ev.Type {
 		case evdev.EV_KEY:
-			s = eventKeyToString(ev)
+			s = eventToString(ev)
 		default:
 			s = ev.String()
 		}
@@ -935,7 +1019,7 @@ var shortKeyNames = map[string]string{
 	"rightshift": " ⇧",
 }
 
-func eventKeyToString(ev *Event) string {
+func eventToString(ev *Event) string {
 	if ev.Type != evdev.EV_KEY {
 		return fmt.Sprintf("[err: need a EV_KEY event. Got %s]", ev.String())
 	}
@@ -950,7 +1034,7 @@ func eventKeyToString(ev *Event) string {
 		return fmt.Sprintf("ev.Value is unknown %d. %s", ev.Value, ev.String())
 	}
 
-	name = name + keyEventValueToString[ev.Value]
+	name = name + eventValueToShortString[ev.Value]
 	return name
 }
 
