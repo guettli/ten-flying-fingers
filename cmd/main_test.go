@@ -104,6 +104,17 @@ var asdfTestEvents = `1712518531;862966;EV_KEY;KEY_A;down
 1712518534;116984;EV_KEY;KEY_F;up
 `
 
+var fjkCombos = []*Combo{
+	{
+		Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
+		OutKeys: []KeyCode{evdev.KEY_X},
+	},
+	{
+		Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_K},
+		OutKeys: []KeyCode{evdev.KEY_Y},
+	},
+}
+
 func Test_manInTheMiddle_noMatch(t *testing.T) {
 	f := func(allCombos []*Combo) {
 		ew := writeToSlice{}
@@ -134,30 +145,20 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_K},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	})
 }
 
 func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
-	allCombos := []*Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_Y},
-		},
-	}
 	AssertComboInputOutput(t, `
 	1712519050;000000;EV_KEY;KEY_B;down
 	1712519050;020000;EV_KEY;KEY_B;up
-	1712519050;700000;EV_KEY;KEY_F;down
-	1712519050;720000;EV_KEY;KEY_A;down
-	1712519051;100000;EV_KEY;KEY_A;up
-	1712519051;110000;EV_KEY;KEY_F;up
+	1712519050;700000;EV_KEY;KEY_J;down
+	1712519050;720000;EV_KEY;KEY_F;down
+	1712519051;100000;EV_KEY;KEY_F;up
+	1712519051;110000;EV_KEY;KEY_J;up
 	1712519051;800000;EV_KEY;KEY_C;down
 	1712519051;900000;EV_KEY;KEY_C;up
 	`,
@@ -168,21 +169,21 @@ func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
 	X-up
 	C-down
 	C-up
-	`, allCombos)
+	`, fjkCombos)
 }
 
 func Test_manInTheMiddle_SingleCombo_OneEmbrachingMatch(t *testing.T) {
 	allCombos := []*Combo{
 		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_K},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
 	AssertComboInputOutput(t, `
-	1712519053;827714;EV_KEY;KEY_F;down
-	1712519053;849844;EV_KEY;KEY_A;down
-	1712519054;320867;EV_KEY;KEY_A;up
-	1712519054;321153;EV_KEY;KEY_F;up
+	1712519053;827714;EV_KEY;KEY_K;down
+	1712519053;849844;EV_KEY;KEY_F;down
+	1712519054;320867;EV_KEY;KEY_F;up
+	1712519054;321153;EV_KEY;KEY_K;up
 	`,
 		`
 	X-down
@@ -192,30 +193,20 @@ func Test_manInTheMiddle_SingleCombo_OneEmbrachingMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_ComboWithMatch(t *testing.T) {
-	allCombos := []*Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_Y},
-		},
-	}
 	f := func(input string, expectedOutput string) {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(input)
 		require.Nil(t, err)
-		err = manInTheMiddle(er, &ew, allCombos, false, true)
+		err = manInTheMiddle(er, &ew, fjkCombos, false, true)
 		require.ErrorIs(t, err, io.EOF)
 		ew.requireEqual(t, expectedOutput)
 	}
 
 	f(`
-	1712519050;700000;EV_KEY;KEY_F;down
-	1712519050;720000;EV_KEY;KEY_A;down
-	1712519051;100000;EV_KEY;KEY_F;up
-	1712519051;110000;EV_KEY;KEY_A;up
+	1712519050;700000;EV_KEY;KEY_J;down
+	1712519050;720000;EV_KEY;KEY_F;down
+	1712519051;100000;EV_KEY;KEY_J;up
+	1712519051;110000;EV_KEY;KEY_F;up
 	1712519051;800000;EV_KEY;KEY_C;down
 	1712519051;900000;EV_KEY;KEY_C;up
 	`,
@@ -226,32 +217,33 @@ func Test_manInTheMiddle_ComboWithMatch(t *testing.T) {
 	C-up
 	`)
 	f(`
-			1716752333;203961;EV_KEY;KEY_A;down
-			1716752333;327486;EV_KEY;KEY_A;up
+			1716752333;203961;EV_KEY;KEY_F;down
+			1716752333;327486;EV_KEY;KEY_F;up
 			`,
 		`
-			A-down
-			A-up
+			F-down
+			F-up
 			`,
 	)
 
-	// short overlap between F-down and A-up.
-	// This is A followed by F, not a combo.
+	// short overlap between K-down and F-up.
+	// This is F followed by K, not a combo.
 	f(`
-			1712519053;827714;EV_KEY;KEY_A;down
-			1712519054;320840;EV_KEY;KEY_F;down
-			1712519054;320860;EV_KEY;KEY_A;up
-			1712519054;321153;EV_KEY;KEY_F;up
+			1712519053;827714;EV_KEY;KEY_F;down
+			1712519054;320840;EV_KEY;KEY_K;down
+			1712519054;320860;EV_KEY;KEY_F;up
+			1712519054;321153;EV_KEY;KEY_K;up
 			`,
 		`
-			A-down
 			F-down
-			A-up
+			K-down
 			F-up
+			K-up
 			`)
 }
 
 func AssertComboInputOutput(t *testing.T, input string, expectedOutput string, allCombos []*Combo) {
+	t.Helper()
 	ew := writeToSlice{}
 	er, err := NewReadFromSlice(input)
 	require.Nil(t, err)
@@ -263,43 +255,33 @@ func AssertComboInputOutput(t *testing.T, input string, expectedOutput string, a
 func Test_manInTheMiddle_SingleComboWithoutMatch(t *testing.T) {
 	allCombos := []*Combo{
 		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
+			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_K},
 			OutKeys: []KeyCode{evdev.KEY_X},
 		},
 	}
 
 	AssertComboInputOutput(t, `
-			1712519050;700000;EV_KEY;KEY_F;down
-			1712519050;820000;EV_KEY;KEY_F;up
-			1712519050;830000;EV_KEY;KEY_A;down
-			1712519050;840000;EV_KEY;KEY_A;up
+			1712519050;700000;EV_KEY;KEY_K;down
+			1712519050;820000;EV_KEY;KEY_K;up
+			1712519050;830000;EV_KEY;KEY_F;down
+			1712519050;840000;EV_KEY;KEY_F;up
 			`,
 		`
+			K-down
+			K-up
 			F-down
 			F-up
-			A-down
-			A-up
 			`, allCombos)
 }
 
 func Test_manInTheMiddle_TwoComboWithSingleMatch(t *testing.T) {
-	allCombos := []*Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_Y},
-		},
-	}
 	AssertComboInputOutput(t, `
 			1712519050;000000;EV_KEY;KEY_B;down
 			1712519050;020000;EV_KEY;KEY_B;up
-			1712519050;700000;EV_KEY;KEY_F;down
-			1712519050;720000;EV_KEY;KEY_A;down
-			1712519051;100000;EV_KEY;KEY_A;up
-			1712519051;110000;EV_KEY;KEY_F;up
+			1712519050;700000;EV_KEY;KEY_J;down
+			1712519050;720000;EV_KEY;KEY_F;down
+			1712519051;100000;EV_KEY;KEY_F;up
+			1712519051;110000;EV_KEY;KEY_J;up
 			1712519051;800000;EV_KEY;KEY_C;down
 			1712519051;900000;EV_KEY;KEY_C;up
 			`,
@@ -310,64 +292,43 @@ func Test_manInTheMiddle_TwoComboWithSingleMatch(t *testing.T) {
 			X-up
 			C-down
 			C-up
-			`, allCombos)
+			`, fjkCombos)
 }
 
 func Test_manInTheMiddle_TwoEmbrachingCombosWithMatch(t *testing.T) {
-	allCombos := []*Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_Y},
-		},
-	}
 	AssertComboInputOutput(t, `
-	1716752333;000000;EV_KEY;KEY_A;down
+	1716752333;000000;EV_KEY;KEY_F;down
 	1716752333;100000;EV_KEY;KEY_J;down
 	1716752333;400000;EV_KEY;KEY_J;up
-	1716752333;600000;EV_KEY;KEY_F;down
-	1716752333;800000;EV_KEY;KEY_F;up
-	1716752334;000000;EV_KEY;KEY_A;up
+	1716752333;600000;EV_KEY;KEY_K;down
+	1716752333;800000;EV_KEY;KEY_K;up
+	1716752334;000000;EV_KEY;KEY_F;up
 	`,
 		`
-	Y-down
-	Y-up
 	X-down
 	X-up
+	Y-down
+	Y-up
 	`,
-		allCombos)
+		fjkCombos)
 }
 
 func Test_manInTheMiddle_TwoJoinedCombos_FirstKeyDownUntilEnd(t *testing.T) {
-	// A-down, F-down, F-up (emit x), J-down, F-up (emit y)
-	allCombos := []*Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_F},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-		{
-			Keys:    []KeyCode{evdev.KEY_A, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_Y},
-		},
-	}
 	f := func(input string, expectedOutput string) {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(input)
 		require.Nil(t, err)
-		err = manInTheMiddle(er, &ew, allCombos, true, true)
+		err = manInTheMiddle(er, &ew, fjkCombos, true, true)
 		require.ErrorIs(t, err, io.EOF)
 		ew.requireEqual(t, expectedOutput)
 	}
 	f(`
-			1716752333;000000;EV_KEY;KEY_A;down
-			1716752333;100000;EV_KEY;KEY_F;down
-			1716752333;400000;EV_KEY;KEY_F;up
-			1716752333;600000;EV_KEY;KEY_J;down
-			1716752333;800000;EV_KEY;KEY_J;up
-			1716752334;000000;EV_KEY;KEY_A;up
+			1716752333;000000;EV_KEY;KEY_F;down
+			1716752333;100000;EV_KEY;KEY_J;down
+			1716752333;400000;EV_KEY;KEY_J;up
+			1716752333;600000;EV_KEY;KEY_K;down
+			1716752333;800000;EV_KEY;KEY_K;up
+			1716752334;000000;EV_KEY;KEY_F;up
 			`,
 		`
 			X-down
@@ -381,21 +342,12 @@ func Test_manInTheMiddle_TwoJoinedCombos_FirstKeyDownUntilEnd(t *testing.T) {
 func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	// This test is to ensure that no panic happens.
 	// Output could be different.
-	allCombos := []*Combo{
-		{
-			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_J},
-			OutKeys: []KeyCode{evdev.KEY_X},
-		},
-		{
-			Keys:    []KeyCode{evdev.KEY_F, evdev.KEY_K},
-			OutKeys: []KeyCode{evdev.KEY_Y},
-		},
-	}
+
 	f := func(input string, expectedOutput string) {
 		ew := writeToSlice{}
 		er, err := NewReadFromSlice(input)
 		require.Nil(t, err)
-		err = manInTheMiddle(er, &ew, allCombos, true, true)
+		err = manInTheMiddle(er, &ew, fjkCombos, true, true)
 		require.ErrorIs(t, err, io.EOF)
 		ew.requireEqual(t, expectedOutput)
 	}
