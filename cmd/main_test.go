@@ -161,7 +161,29 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 	})
 }
 
-////////////////////////////////////////////////
+// //////////////////////////////////////////////
+func Test_manInTheMiddle_NoMatch_JustKeys(t *testing.T) {
+	AssertComboInputOutput(t, `
+	1712500000;000000;EV_KEY;KEY_B;down
+	1712500000;020000;EV_KEY;KEY_B;up
+	1712500000;700000;EV_KEY;KEY_F;down
+	1712500000;720000;EV_KEY;KEY_F;up
+	1712500001;100000;EV_KEY;KEY_J;down
+	1712500001;110000;EV_KEY;KEY_J;up
+	1712500001;800000;EV_KEY;KEY_C;down
+	1712500001;900000;EV_KEY;KEY_C;up
+	`,
+		`
+	B-down
+	B-up
+	F-down
+	F-up
+	J-down
+	J-up
+	C-down
+	C-up
+	`, fjkCombos)
+}
 
 func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
 	AssertComboInputOutput(t, `
@@ -336,6 +358,8 @@ func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	F-down
 	`, fjkCombos)
 }
+
+//////////////////////////////
 
 var orderedCombos = []*Combo{
 	{

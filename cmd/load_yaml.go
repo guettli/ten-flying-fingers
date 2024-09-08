@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"unicode"
 
 	"github.com/holoplot/go-evdev"
 	"gopkg.in/yaml.v3"
@@ -73,31 +72,21 @@ func stringToKeyCodes(str string) ([]KeyCode, error) {
 	return codes, nil
 }
 
-func wordToKeyCode(word string) (KeyCode, error) {
-	runes := []rune(word)
-	if len(runes) == 1 {
-		return runeToKeyCode(runes[0])
-	}
-	key, ok := evdev.KEYFromString[word]
-	if !ok {
-		return 0, fmt.Errorf("failed to get key %q: %w", word, UnknownKeyErr)
-	}
-	return key, nil
-}
+// asdfasdfasdf
 
 var (
 	OnlyLowerCaseAllowedErr = fmt.Errorf("only lower case characters are allowed")
 	UnknownKeyErr           = fmt.Errorf("unknown key")
 )
 
-func runeToKeyCode(r rune) (KeyCode, error) {
-	if unicode.ToLower(r) != r {
-		return 0, fmt.Errorf("key %q is invalid: %w", string(r), OnlyLowerCaseAllowedErr)
+func wordToKeyCode(s string) (KeyCode, error) {
+	if strings.ToLower(s) != s {
+		return 0, fmt.Errorf("key %q is invalid: %w", s, OnlyLowerCaseAllowedErr)
 	}
-	keyString := fmt.Sprintf("KEY_%s", string(unicode.ToUpper(r)))
+	keyString := fmt.Sprintf("KEY_%s", string(strings.ToUpper(s)))
 	key, ok := evdev.KEYFromString[keyString]
 	if !ok {
-		return 0, fmt.Errorf("failed to get key %q: %w", keyString, UnknownKeyErr)
+		return 0, fmt.Errorf("failed to get key %q: %w. Use sub-command 'print' to see valid names of keys", s, UnknownKeyErr)
 	}
 	return key, nil
 }

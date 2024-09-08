@@ -12,17 +12,18 @@ func Test_runeToKeyCode(t *testing.T) {
 		r rune
 	}
 	tests := []struct {
-		inRune          rune
+		inString        string
 		expectedKeyCode KeyCode
 		expectedError   error
 	}{
-		{'x', evdev.KEY_X, nil},
-		{'1', evdev.KEY_1, nil},
-		{'X', 0, OnlyLowerCaseAllowedErr},
-		{'ü', 0, UnknownKeyErr},
+		{"x", evdev.KEY_X, nil},
+		{"1", evdev.KEY_1, nil},
+		{"capslock", evdev.KEY_CAPSLOCK, nil},
+		{"X", 0, OnlyLowerCaseAllowedErr},
+		{"ü", 0, UnknownKeyErr},
 	}
 	for _, tt := range tests {
-		got, err := runeToKeyCode(tt.inRune)
+		got, err := wordToKeyCode(tt.inString)
 		if tt.expectedError != nil {
 			require.ErrorIs(t, err, tt.expectedError)
 		} else {
@@ -34,8 +35,8 @@ func Test_runeToKeyCode(t *testing.T) {
 
 func TestLoadYamlFromBytes_ok(t *testing.T) {
 	yamlString := `combos:
-  - keys: f  KEY_J
-    outKeys: a b  KEY_C
+  - keys: f j
+    outKeys: a b c
 `
 	expected := []*Combo{
 		{
@@ -83,9 +84,9 @@ func TestLoadYamlFromBytes_fail(t *testing.T) {
 		{
 			`combos:
   - keys: f j
-    outKeys: a b KEY_not_existing
+    outKeys: a b key_not_existing
 `,
-			`failed to get key "KEY_not_existing"`,
+			`failed to get key "key_not_existing"`,
 		},
 	}
 	for _, tt := range tests {

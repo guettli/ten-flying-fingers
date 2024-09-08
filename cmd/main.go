@@ -512,6 +512,9 @@ func manInTheMiddleInnerLoop(evP *Event, ew EventWriter, state *State) error {
 		err = state.HandleUpChar(*evP)
 	case DOWN:
 		err = state.HandleDownChar(*evP)
+	case REPEAT:
+		fmt.Printf(" skipping (repeat): %s\n", evP.String())
+		return nil
 	default:
 		return fmt.Errorf("Received %d. Expected UP or DOWN", evP.Value)
 	}
@@ -549,7 +552,9 @@ type State struct {
 
 func (state *State) Eval(time syscall.Timeval) error {
 	fmt.Printf("Eval %s\n", state.String())
-	if len(state.buf) == 2 && len(state.swallowKeys) > 0 {
+	if len(state.buf) == 2 &&
+		state.buf[0].Code == state.buf[1].Code &&
+		state.buf[0].Value == DOWN && state.buf[1].Value == UP {
 		newSwallowKeys := make([]KeyCode, 0, len(state.swallowKeys))
 		doSwallow := false
 		for _, key := range state.swallowKeys {
@@ -565,6 +570,8 @@ func (state *State) Eval(time syscall.Timeval) error {
 			state.buf = nil
 			return nil
 		}
+		state.FlushBuffer("Eval>up-down-of-singlechar")
+		return nil
 	}
 	combos := state.allCombos
 	codes := make([]evalResult, 0, len(combos))
