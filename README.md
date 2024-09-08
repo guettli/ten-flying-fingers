@@ -1,6 +1,6 @@
 # Ten Flying Fingers
 
-I learned [touch typing](https://en.wikipedia.org/wiki/Touch_typing) several years ago. And I can write blind almost everything. 
+I learned [touch typing](https://en.wikipedia.org/wiki/Touch_typing) several years ago. And I can write blind almost everything.
 
 But some key are not easy to reach. For example these keys: Pos1, End or Del.
 
@@ -36,7 +36,7 @@ I use CapsLock-n for that now.
 
 # I am happy with most other keys on the keyboard
 
-I know that there are alternative keyboard layouts like neo2 or colemark. But I am happy with the default QWERTY or QWERTZ layout. 
+I know that there are alternative keyboard layouts like neo2 or colemark. But I am happy with the default QWERTY or QWERTZ layout.
 
 I want to improve the default layout, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members like I am used to.
 
@@ -54,10 +54,15 @@ I searched a bit and found [go-evdev](https://github.com/holoplot/go-evdev) a pa
 
 See code in the `cmd` folder.
 
+# Keyboard Input Details on Linux
+
+- [ArchLinux Docs "Keyboard Input"](https://wiki.archlinux.org/title/Keyboard_input)
+- [Linux Kernel "Input Documentation"](https://docs.kernel.org/input/index.html)
+
 # Related
 
-* I post updates to this article here: https://www.reddit.com/r/typing/
-* More desktop related tips are in my [article "Desktop Tips"](https://github.com/guettli/desktop-tips-and-tricks).
+- I post updates to this article here: <https://www.reddit.com/r/typing/>
+- More desktop related tips are in my [article "Desktop Tips"](https://github.com/guettli/desktop-tips-and-tricks).
 
 # Trackpoint with Sandpaper
 
@@ -78,10 +83,7 @@ You found a typo, you have the same need as I, you know how to solve this?
 
 Please send me advices via an github issue!
 
-
-
 # More
 
-* [Thomas WOL: Working out Loud](https://github.com/guettli/wol)
-* [Desktop Tips](https://github.com/guettli/desktop-tips-and-tricks)
-
+- [Thomas WOL: Working out Loud](https://github.com/guettli/wol)
+- [Desktop Tips](https://github.com/guettli/desktop-tips-and-tricks)

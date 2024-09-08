@@ -893,6 +893,9 @@ func csv(sourceDev *evdev.InputDevice) error {
 		if ev.Type == evdev.EV_SYN {
 			continue
 		}
+		if ev.Type == evdev.EV_MSC && ev.Code == evdev.MSC_SCAN {
+			continue
+		}
 
 		line := eventToCsvLine(*ev)
 		fmt.Print(line)
@@ -940,6 +943,9 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 			continue
 		}
 		if ev.Type == evdev.EV_SYN {
+			continue
+		}
+		if ev.Type == evdev.EV_MSC && ev.Code == evdev.MSC_SCAN {
 			continue
 		}
 
