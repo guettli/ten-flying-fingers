@@ -5,7 +5,9 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/holoplot/go-evdev"
 	"github.com/stretchr/testify/require"
@@ -55,10 +57,20 @@ func csvToShortCsv(csv string) (string, error) {
 	return strings.Join(e, "\n"), nil
 }
 
-func AssertComboInputOutput(t *testing.T, input string, expectedOutput string, allCombos []*Combo) {
+func AssertComboCSVInputOutput(t *testing.T, input string, expectedOutput string, allCombos []*Combo) {
+	_assertInputOutput(t, input, expectedOutput, allCombos, NewReadFromSliceInputCSV)
+}
+
+func AssertComboStateStringInputOutput(t *testing.T, input string, expectedOutput string, allCombos []*Combo) {
+	_assertInputOutput(t, input, expectedOutput, allCombos, NewReadFromSliceInputStateString)
+}
+
+func _assertInputOutput(t *testing.T, input string, expectedOutput string, allCombos []*Combo,
+	stringToEventsFunc func(string) (*readFromSlice, error),
+) {
 	t.Helper()
 	ew := writeToSlice{}
-	er, err := NewReadFromSlice(input)
+	er, err := stringToEventsFunc(input)
 	require.Nil(t, err)
 	err = manInTheMiddle(er, &ew, allCombos, true, true)
 	require.ErrorIs(t, err, io.EOF)
@@ -96,13 +108,72 @@ func (rfs *readFromSlice) loadCSV(csvString string) error {
 	return err
 }
 
-func NewReadFromSlice(csvString string) (*readFromSlice, error) {
+func stateStringToSlice(stateString string) ([]evdev.InputEvent, error) {
+	var timeVal syscall.Timeval
+	syscall.Gettimeofday(&timeVal)
+	timeVal.Usec = 0
+	parts := strings.Fields(stateString)
+	if len(parts)%2 != 1 {
+		return nil, fmt.Errorf("stateString %q has an evem number of parts. "+
+			"Need something like 'f_ (259.006ms) j_ (105.844ms) j/ (721.7ms) f/", stateString)
+	}
+	events := make([]evdev.InputEvent, 0, len(parts))
+	for i, part := range parts {
+		if i%2 == 0 {
+			// is key
+			lastChar := part[len(part)-1]
+			var value int32
+			switch lastChar {
+			case '_':
+				value = DOWN
+			case '/':
+				value = UP
+			}
+			code, err := wordToKeyCode(part[:len(part)-1])
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, evdev.InputEvent{
+				Time:  timeVal,
+				Type:  evdev.EV_KEY,
+				Code:  code,
+				Value: value,
+			})
+			continue
+		}
+		// is time
+		d, err := time.ParseDuration(part[1 : len(part)-1])
+		if err != nil {
+			return nil, err
+		}
+		t := syscallTimevalToTime(timeVal)
+		t = t.Add(d)
+		timeVal = timeToSyscallTimeval(t)
+	}
+	return events, nil
+}
+
+func (rfs *readFromSlice) loadStateString(stateString string) error {
+	s, err := stateStringToSlice(stateString)
+	rfs.s = s
+	return err
+}
+
+func NewReadFromSliceInputCSV(csvString string) (*readFromSlice, error) {
 	rfs := readFromSlice{}
 	err := rfs.loadCSV(csvString)
 	return &rfs, err
 }
 
-var _ = EventReader(&readFromSlice{})
+// stateSTring is a string like this:
+// capslock_ (259.006ms) u_ (105.844ms) u/ (721.7ms) capslock/
+func NewReadFromSliceInputStateString(stateString string) (*readFromSlice, error) {
+	rfs := readFromSlice{}
+	err := rfs.loadStateString(stateString)
+	return &rfs, err
+}
+
+var _ EventReader = &readFromSlice{}
 
 var asdfTestEvents = `1712500001;862966;EV_KEY;KEY_A;down
 1712500002;22233;EV_KEY;KEY_A;up
@@ -128,7 +199,7 @@ var fjkCombos = []*Combo{
 func Test_manInTheMiddle_noMatch(t *testing.T) {
 	f := func(allCombos []*Combo) {
 		ew := writeToSlice{}
-		er, err := NewReadFromSlice(asdfTestEvents)
+		er, err := NewReadFromSliceInputCSV(asdfTestEvents)
 		require.Nil(t, err)
 		err = manInTheMiddle(er, &ew, allCombos, false, true)
 		require.ErrorIs(t, err, io.EOF)
@@ -163,7 +234,7 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 
 // //////////////////////////////////////////////
 func Test_manInTheMiddle_NoMatch_JustKeys(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500000;000000;EV_KEY;KEY_B;down
 	1712500000;020000;EV_KEY;KEY_B;up
 	1712500000;700000;EV_KEY;KEY_F;down
@@ -186,7 +257,7 @@ func Test_manInTheMiddle_NoMatch_JustKeys(t *testing.T) {
 }
 
 func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500000;000000;EV_KEY;KEY_B;down
 	1712500000;020000;EV_KEY;KEY_B;up
 	1712500000;700000;EV_KEY;KEY_F;down
@@ -207,7 +278,7 @@ func Test_manInTheMiddle_TwoCombos_WithOneEmbrachingMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_SingleCombo_OneEmbrachingMatch(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500003;827714;EV_KEY;KEY_F;down
 	1712500003;849844;EV_KEY;KEY_J;down
 	1712500004;320867;EV_KEY;KEY_J;up
@@ -221,7 +292,7 @@ func Test_manInTheMiddle_SingleCombo_OneEmbrachingMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_ComboWithMatch_CrossRhyme(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500000;700000;EV_KEY;KEY_F;down
 	1712500000;720000;EV_KEY;KEY_J;down
 	1712500001;100000;EV_KEY;KEY_F;up
@@ -238,7 +309,7 @@ func Test_manInTheMiddle_ComboWithMatch_CrossRhyme(t *testing.T) {
 }
 
 func Test_manInTheMiddle_ComboWithMatch_SingleUpDown(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1716752333;203961;EV_KEY;KEY_F;down
 	1716752333;327486;EV_KEY;KEY_F;up
 	`,
@@ -252,7 +323,7 @@ func Test_manInTheMiddle_ComboWithMatch_SingleUpDown(t *testing.T) {
 func Test_manInTheMiddle_ComboWithMatch_OverlapNoCombo(t *testing.T) {
 	// short overlap between K-down and F-up.
 	// This is F followed by K, not a combo.
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500003;827714;EV_KEY;KEY_F;down
 	1712500004;320840;EV_KEY;KEY_J;down
 	1712500004;320860;EV_KEY;KEY_F;up
@@ -267,7 +338,7 @@ func Test_manInTheMiddle_ComboWithMatch_OverlapNoCombo(t *testing.T) {
 }
 
 func Test_manInTheMiddle_WithoutMatch(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500000;700000;EV_KEY;KEY_K;down
 	1712500000;820000;EV_KEY;KEY_K;up
 	1712500000;830000;EV_KEY;KEY_F;down
@@ -282,7 +353,7 @@ func Test_manInTheMiddle_WithoutMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_TwoComboWithSingleMatch(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500000;000000;EV_KEY;KEY_B;down
 	1712500000;020000;EV_KEY;KEY_B;up
 	1712500000;700000;EV_KEY;KEY_F;down
@@ -303,7 +374,7 @@ func Test_manInTheMiddle_TwoComboWithSingleMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_TwoEmbrachingCombosWithMatch(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1716752333;000000;EV_KEY;KEY_F;down
 	1716752333;100000;EV_KEY;KEY_J;down
 	1716752333;400000;EV_KEY;KEY_J;up
@@ -321,7 +392,7 @@ func Test_manInTheMiddle_TwoEmbrachingCombosWithMatch(t *testing.T) {
 }
 
 func Test_manInTheMiddle_TwoJoinedCombos_FirstKeyDownUntilEnd(t *testing.T) {
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1716752333;000000;EV_KEY;KEY_F;down
 	1716752333;100000;EV_KEY;KEY_J;down
 	1716752333;400000;EV_KEY;KEY_J;up
@@ -341,7 +412,7 @@ func Test_manInTheMiddle_TwoJoinedCombos_FirstKeyDownUntilEnd(t *testing.T) {
 func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	// This test is to ensure that no panic happens.
 	// Output could be different.
-	AssertComboInputOutput(t, `
+	AssertComboCSVInputOutput(t, `
 	1712500000;000000;EV_KEY;KEY_F;down
 	1712500000;064000;EV_KEY;KEY_K;down
 	1712500000;128000;EV_KEY;KEY_F;up
@@ -380,8 +451,15 @@ var orderedCombos = []*Combo{
 	},
 }
 
+var capslockCombos = []*Combo{
+	{
+		Keys:    []KeyCode{evdev.KEY_CAPSLOCK, evdev.KEY_J},
+		OutKeys: []KeyCode{evdev.KEY_BACKSPACE},
+	},
+}
+
 func Test_orderedCombos(t *testing.T) {
-	AssertComboInputOutput(t,
+	AssertComboCSVInputOutput(t,
 		`
 	1712500000;000000;EV_KEY;KEY_F;down
 	1712500000;060000;EV_KEY;KEY_J;down
@@ -400,4 +478,16 @@ func Test_orderedCombos(t *testing.T) {
 		A-up
 	`,
 		orderedCombos)
+}
+
+func Test_Capslock_Navigation(t *testing.T) {
+	AssertComboStateStringInputOutput(t,
+		`
+		capslock_ (259.006ms) j_ (105.844ms) j/ (721.7ms) capslock/
+	`,
+		`
+		BACKSPACE-down
+		BACKSPACE-up
+	`,
+		capslockCombos)
 }
