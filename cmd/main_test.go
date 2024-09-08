@@ -409,6 +409,23 @@ func Test_manInTheMiddle_TwoJoinedCombos_FirstKeyDownUntilEnd(t *testing.T) {
 		fjkCombos)
 }
 
+func Test_manInTheMiddle_Unrelated_Embraced_Keystrokes(t *testing.T) {
+	AssertComboCSVInputOutput(t, `
+	1716752333;000000;EV_KEY;KEY_F;down
+	1716752333;100000;EV_KEY;KEY_W;down
+	1716752333;400000;EV_KEY;KEY_W;up
+	1716752334;000000;EV_KEY;KEY_F;up
+	1716752334;100000;EV_KEY;KEY_RFKILL;up
+	`,
+		`
+	X-down
+	X-up
+	Y-down
+	Y-up
+	`,
+		fjkCombos)
+}
+
 func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 	// This test is to ensure that no panic happens.
 	// Output could be different.

@@ -475,6 +475,11 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 				}
 				return err
 			}
+			if evP.Code == evdev.KEY_RFKILL {
+				// This is used for unit-tests.
+				// It makes the endless loop stop without the final FlushBuffer.
+				return io.EOF
+			}
 			if state.fakeActiveTimer && state.fakeActiverTimerNextTime.Before(syscallTimevalToTime(evP.Time)) {
 				if err := state.AfterTimer(); err != nil {
 					return err
