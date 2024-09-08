@@ -481,6 +481,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 				}
 				state.fakeActiverTimerNextTime = maxTime
 			}
+
 			if debug {
 				fmt.Printf("\n|>>%s", eventToCsvLine(*evP))
 			}
@@ -724,22 +725,9 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 // If all down-keys got pressed (and held down, no up-keys were seen yet),
 // then we need to fire the down events after some time.
 func (state *State) AfterTimer() error {
-	// if len(state.upKeysMissing) == 0 {
-	// 	// No combos were completed. Flush buffer and clear partial combos.
-	// 	state.FlushBuffer("AfterTimer>No-completed-combo")
-	// 	return nil
-	// }
-	// for _, pc := range state.upKeysMissing {
-	// 	if !pc.downKeysWritten {
-	// 		// All keys were pressed, but not all up-keys seen yet.
-	// 		// Fire the down-keys for this combo.
-	// 		state.WriteDownKeysOld(pc, "AfterTimer>up-keys-was-missing")
-	// 	}
-	// }
-	// fmt.Printf("  AfterTimer>State: %s\n", state.String())
-	// state.activeTimer = nil
-	// state.fakeActiverTimerNextTime = maxTime
-	return nil
+	timeval := syscall.Timeval{}
+	syscall.Gettimeofday(&timeval)
+	return state.Eval(timeval)
 }
 
 func (state *State) WriteComboDownKeysNew(combo *Combo) error {
@@ -897,10 +885,7 @@ func csv(sourceDev *evdev.InputDevice) error {
 		if err != nil {
 			return err
 		}
-		if ev.Type == evdev.EV_SYN {
-			continue
-		}
-		if ev.Type == evdev.EV_MSC && ev.Code == evdev.MSC_SCAN {
+		if eventToSkip(ev) {
 			continue
 		}
 
@@ -949,10 +934,7 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 			}
 			continue
 		}
-		if ev.Type == evdev.EV_SYN {
-			continue
-		}
-		if ev.Type == evdev.EV_MSC && ev.Code == evdev.MSC_SCAN {
+		if eventToSkip(ev) {
 			continue
 		}
 
@@ -1096,7 +1078,7 @@ func eventToCsvLine(ev Event) string {
 func eventsToCsv(s []Event) string {
 	csv := make([]string, 0, len(s))
 	for _, ev := range s {
-		if ev.Type == evdev.EV_SYN {
+		if eventToSkip(&ev) {
 			continue
 		}
 		csv = append(csv, eventToCsvLine(ev))
@@ -1179,4 +1161,14 @@ func removeFromSlice[T comparable](s []T, elem T) []T {
 		newSlice = append(newSlice, s[i])
 	}
 	return newSlice
+}
+
+func eventToSkip(ev *Event) bool {
+	if ev.Type == evdev.EV_SYN {
+		return true
+	}
+	if ev.Type == evdev.EV_MSC && ev.Code == evdev.MSC_SCAN {
+		return true
+	}
+	return false
 }
