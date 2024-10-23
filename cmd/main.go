@@ -684,6 +684,10 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 	if len(seenDown) == 0 {
 		return NoMatch, "No down-keys seen", nil
 	}
+	if unknownKey != nil {
+		return NoMatch, "Unknown key in buffer: " + keyToString(*unknownKey), nil
+	}
+
 	for i, key := range combo.Keys {
 		if i >= len(seenDown) {
 			// Not all down-keys are seen.
@@ -704,11 +708,6 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 		if overlapDuration < 40*time.Millisecond {
 			return NoMatch, fmt.Sprintf("Overlap too short %s", overlapDuration), nil
 		}
-	}
-	if unknownKey != nil && len(seenUp) == 0 {
-		// We have seen the down-keys, but there is an unknown key in the buffer.
-		// The combo will never be completed.
-		return NoMatch, "Unknown key in buffer: " + keyToString(*unknownKey), nil
 	}
 	age := timeSub(*lastDownTime, currTime)
 	minAge := 140 * time.Millisecond

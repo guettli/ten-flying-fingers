@@ -418,10 +418,10 @@ func Test_manInTheMiddle_Unrelated_Embraced_Keystrokes(t *testing.T) {
 	1716752334;100000;EV_KEY;KEY_RFKILL;up
 	`,
 		`
-	X-down
-	X-up
-	Y-down
-	Y-up
+	F-down
+	W-down
+	W-up
+	F-up
 	`,
 		fjkCombos)
 }
@@ -440,9 +440,11 @@ func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 		// The input is quite crazy. This tests ensures that no panic happens.
 		// Changes are allowed to alter the output.
 		`
-	Y-down
-	Y-up
+	F-down
+	K-down
+	F-up
 	J-down
+	K-up
 	F-down
 	`, fjkCombos)
 }
