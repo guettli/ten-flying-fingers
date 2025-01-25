@@ -104,7 +104,7 @@ Usage:
 
      Create events from a csv file.
 
-  %s combos combos.yaml [ /dev/input/... ]
+  %s combos [--debug] combos.yaml [ /dev/input/... ]
 
      Run combos defined in combos.yaml
 
@@ -112,7 +112,7 @@ Usage:
 
      Replay a combo log. If you got a panic while using the combos sub-command,
 	 you can update the Go code and replay the log to see if the bug was fixed.
-	 You must run the combos sub-command with the --debug flag to create the log.
+	 You must run the 'combos' sub-command with the --debug flag to create the log.
 
   Devices which look like a keyboard:
 %s
@@ -311,7 +311,7 @@ func createEventsFromCsv(csvPath string) error {
 		}
 		ev, err := csvlineToEvent(line)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create event from csv: %w", err)
 		}
 		fmt.Println(ev.String())
 	}
@@ -349,15 +349,19 @@ func csvlineToEvent(line string) (Event, error) {
 		return ev, fmt.Errorf("failed to parse col 2 (usec) from line: %s. %w", line, err)
 	}
 
+	// EV_KEY, EV_SYN, EV_MSC, ...
 	evType, ok := evdev.EVFromString[parts[2]]
 	if !ok {
 		return ev, fmt.Errorf("failed to parse col 3 (EvType) from line: %s. %q", line, parts[2])
 	}
 
 	var code evdev.EvCode
-	if parts[3] == "SYN_REPORT" {
+	switch parts[3] {
+	case "SYN_REPORT":
 		code = evdev.SYN_REPORT
-	} else {
+	case "MSC_SCAN":
+		code = evdev.MSC_SCAN
+	default:
 		code, ok = evdev.KEYFromString[parts[3]]
 		if !ok {
 			return ev, fmt.Errorf("failed to parse col 4 (Key) from line: %s. %q", line, parts[3])
@@ -1047,7 +1051,7 @@ func csvToSlice(csvString string) ([]Event, error) {
 		}
 		ev, err := csvlineToEvent(line)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("csv to slice failed: %w", err)
 		}
 		s = append(s, ev)
 	}
@@ -1100,7 +1104,10 @@ func (c *ComboLogEventReader) ReadOne() (*Event, error) {
 			continue
 		}
 		ev, err := csvlineToEvent(line[idx+3:])
-		return &ev, err
+		if err != nil {
+			return nil, fmt.Errorf("csvlineToEvent failed: %w", err)
+		}
+		return &ev, nil
 	}
 }
 
