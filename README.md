@@ -6,7 +6,7 @@ But some key are not easy to reach. For example these keys: Pos1, End or Del.
 
 I want to keep the pointing fingers on "F" and "J" as much as possible (aka "home row").
 
-# Keys which are hard to access
+## Keys which are hard to access
 
 These keys are hard to access if you want to keep the pointing fingers on "F" and "J"
 
@@ -18,7 +18,7 @@ These keys are hard to access if you want to keep the pointing fingers on "F" an
 - Esc
 - ...
 
-# Example: Choose item from auto-complete list
+## Example: Choose item from auto-complete list
 
 Imagine the active cursor is in the address bar of your browser.
 
@@ -34,19 +34,19 @@ Arrow-down is not easy to reach.
 
 I use CapsLock-n for that now.
 
-# I am happy with most other keys on the keyboard
+## I am happy with most other keys on the keyboard
 
 I know that there are alternative keyboard layouts like neo2 or colemark. But I am happy with the default QWERTY or QWERTZ layout.
 
 I want to improve the default layout, I don't want to replace it. I want to be able to use the keyboard of my team mates and family members like I am used to.
 
-# KMonad
+## KMonad
 
 I use [KMonad](https://github.com/kmonad/kmonad) for that now.
 
 You can see my config in [remapping-keys.kmonad](./remapping-keys.kmonad).
 
-# Golang
+## Golang
 
 The syntax of KMonad is not easy to understand for me.
 
@@ -54,17 +54,17 @@ I searched a bit and found [go-evdev](https://github.com/holoplot/go-evdev) a pa
 
 See code in the `cmd` folder.
 
-# Keyboard Input Details on Linux
+## Keyboard Input Details on Linux
 
 - [ArchLinux Docs "Keyboard Input"](https://wiki.archlinux.org/title/Keyboard_input)
 - [Linux Kernel "Input Documentation"](https://docs.kernel.org/input/index.html)
 
-# Related
+## Related
 
 - I post updates to this article here: <https://www.reddit.com/r/typing/>
 - More desktop related tips are in my [article "Desktop Tips"](https://github.com/guettli/desktop-tips-and-tricks).
 
-# Trackpoint with Sandpaper
+## Trackpoint with Sandpaper
 
 I want to keep my fingers close to the home row for moving the mouse cursor.
 
@@ -77,13 +77,13 @@ To get maximum grip, I stick sandpaper on the trackpoint.
 Caution: Don't stick sandpaper on the trackpoint of your laptop. If you close the laptop, then it is likely that
 the sandpaper will scratch the screen.
 
-# I love feedback
+## I love feedback
 
 You found a typo, you have the same need as I, you know how to solve this?
 
 Please send me advices via an github issue!
 
-# More
+## More
 
 - [Thomas WOL: Working out Loud](https://github.com/guettli/wol)
 - [Desktop Tips](https://github.com/guettli/desktop-tips-and-tricks)
