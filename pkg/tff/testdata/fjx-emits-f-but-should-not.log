@@ -1,0 +1,235 @@
+
+|>>1737972173;97987;EV_MSC;MSC_SCAN;458761
+
+|>>1737972173;97987;EV_KEY;KEY_F;down
+Eval [down] f_ downKeysWritten: [] swallowKeys: []
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: seenDown [F]
+
+|>>1737972173;97987;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ downKeysWritten: [] swallowKeys: []
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: seenDown [F]
+
+|>>1737972173;356449;EV_KEY;KEY_F;repeat
+ skipping (repeat): type: 0x01 [EV_KEY], code: 0x21 [KEY_F], value: 2
+
+|>>1737972173;356449;EV_SYN;SYN_REPORT;down
+
+|>>1737972173;391523;EV_KEY;KEY_F;repeat
+ skipping (repeat): type: 0x01 [EV_KEY], code: 0x21 [KEY_F], value: 2
+
+|>>1737972173;391523;EV_SYN;SYN_REPORT;down
+
+|>>1737972173;425449;EV_KEY;KEY_F;repeat
+ skipping (repeat): type: 0x01 [EV_KEY], code: 0x21 [KEY_F], value: 2
+
+|>>1737972173;425449;EV_SYN;SYN_REPORT;down
+
+|>>1737972173;450044;EV_MSC;MSC_SCAN;458765
+
+|>>1737972173;450044;EV_KEY;KEY_J;down
+Eval [down] f_ (352.057ms) j_ downKeysWritten: [] swallowKeys: []
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972173;450044;EV_SYN;SYN_REPORT;up
+
+|>>1737972173;529991;EV_MSC;MSC_SCAN;458765
+
+|>>1737972173;529991;EV_KEY;KEY_J;up
+Eval [up] f_ (352.057ms) j_ (79.947ms) j/ downKeysWritten: [] swallowKeys: []
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 79.947ms
+
+|>>1737972173;529991;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (352.057ms) j_ (79.947ms) j/ downKeysWritten: [] swallowKeys: []
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972173;785991;EV_MSC;MSC_SCAN;458765
+
+|>>1737972173;785991;EV_KEY;KEY_J;down
+Eval [down] f_ (688.004ms) j_ downKeysWritten: [] swallowKeys: [F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972173;785991;EV_SYN;SYN_REPORT;up
+
+|>>1737972173;865995;EV_MSC;MSC_SCAN;458765
+
+|>>1737972173;865995;EV_KEY;KEY_J;up
+Eval [up] f_ (688.004ms) j_ (80.004ms) j/ downKeysWritten: [] swallowKeys: [F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 80.004ms
+
+|>>1737972173;865995;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (688.004ms) j_ (80.004ms) j/ downKeysWritten: [] swallowKeys: [F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972174;97995;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;97995;EV_KEY;KEY_J;down
+Eval [down] f_ (1.000008s) j_ downKeysWritten: [] swallowKeys: [F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972174;97995;EV_SYN;SYN_REPORT;up
+
+|>>1737972174;169995;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;169995;EV_KEY;KEY_J;up
+Eval [up] f_ (1.000008s) j_ (72ms) j/ downKeysWritten: [] swallowKeys: [F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 72ms
+
+|>>1737972174;169995;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (1.000008s) j_ (72ms) j/ downKeysWritten: [] swallowKeys: [F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972174;378044;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;378044;EV_KEY;KEY_J;down
+Eval [down] f_ (1.280057s) j_ downKeysWritten: [] swallowKeys: [F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972174;378044;EV_SYN;SYN_REPORT;up
+
+|>>1737972174;434043;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;434043;EV_KEY;KEY_J;up
+Eval [up] f_ (1.280057s) j_ (55.999ms) j/ downKeysWritten: [] swallowKeys: [F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 55.999ms
+
+|>>1737972174;434043;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (1.280057s) j_ (55.999ms) j/ downKeysWritten: [] swallowKeys: [F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972174;593960;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;593960;EV_KEY;KEY_J;down
+Eval [down] f_ (1.495973s) j_ downKeysWritten: [] swallowKeys: [F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972174;593960;EV_SYN;SYN_REPORT;up
+
+|>>1737972174;634040;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;634040;EV_KEY;KEY_J;up
+Eval [up] f_ (1.495973s) j_ (40.08ms) j/ downKeysWritten: [] swallowKeys: [F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 40.08ms
+
+|>>1737972174;634040;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (1.495973s) j_ (40.08ms) j/ downKeysWritten: [] swallowKeys: [F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972174;794070;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;794070;EV_KEY;KEY_J;down
+Eval [down] f_ (1.696083s) j_ downKeysWritten: [] swallowKeys: [F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972174;794070;EV_SYN;SYN_REPORT;up
+
+|>>1737972174;850037;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;850037;EV_KEY;KEY_J;up
+Eval [up] f_ (1.696083s) j_ (55.967ms) j/ downKeysWritten: [] swallowKeys: [F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 55.967ms
+
+|>>1737972174;850037;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (1.696083s) j_ (55.967ms) j/ downKeysWritten: [] swallowKeys: [F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972174;969958;EV_MSC;MSC_SCAN;458765
+
+|>>1737972174;969958;EV_KEY;KEY_J;down
+Eval [down] f_ (1.871971s) j_ downKeysWritten: [] swallowKeys: [F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972174;969958;EV_SYN;SYN_REPORT;up
+
+|>>1737972175;17992;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;17992;EV_KEY;KEY_J;up
+Eval [up] f_ (1.871971s) j_ (48.034ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 48.034ms
+
+|>>1737972175;17992;EV_SYN;SYN_REPORT;up
+
+|>>1737972175;113962;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;113962;EV_KEY;KEY_J;down
+Eval [down] f_ (1.871971s) j_ (48.034ms) j/ (95.97ms) j_ downKeysWritten: [] swallowKeys: [F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972175;113962;EV_SYN;SYN_REPORT;up
+
+|>>1737972175;177994;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;177994;EV_KEY;KEY_J;up
+Eval [up] f_ (1.871971s) j_ (48.034ms) j/ (95.97ms) j_ (64.032ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 64.032ms
+
+|>>1737972175;177994;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (1.871971s) j_ (48.034ms) j/ (95.97ms) j_ (64.032ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972175;281996;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;281996;EV_KEY;KEY_J;down
+Eval [down] f_ (2.184009s) j_ downKeysWritten: [] swallowKeys: [F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972175;281996;EV_SYN;SYN_REPORT;up
+
+|>>1737972175;338043;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;338043;EV_KEY;KEY_J;up
+Eval [up] f_ (2.184009s) j_ (56.047ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 56.047ms
+
+|>>1737972175;338043;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (2.184009s) j_ (56.047ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972175;449997;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;449997;EV_KEY;KEY_J;down
+Eval [down] f_ (2.35201s) j_ downKeysWritten: [] swallowKeys: [F F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972175;449997;EV_SYN;SYN_REPORT;up
+
+|>>1737972175;505995;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;505995;EV_KEY;KEY_J;up
+Eval [up] f_ (2.35201s) j_ (55.998ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 55.998ms
+
+|>>1737972175;505995;EV_SYN;SYN_REPORT;up
+Eval [timer] f_ (2.35201s) j_ (55.998ms) j/ downKeysWritten: [] swallowKeys: [F F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X WriteUpKeys: WriteUpKeys. Finished [J]
+  write x_ WriteCombo down KEY_F KEY_J -> KEY_X
+  write x/ WriteCombo up KEY_F KEY_J -> KEY_X
+
+|>>1737972175;618061;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;618061;EV_KEY;KEY_J;down
+Eval [down] f_ (2.520074s) j_ downKeysWritten: [] swallowKeys: [F F F F F F F F F]
+  EvalCombo KEY_F KEY_J -> KEY_X ComboNotFinished: All down seen, but too young (lastDown..currTime minAge 140ms): 0s
+
+|>>1737972175;618061;EV_SYN;SYN_REPORT;up
+
+|>>1737972175;657963;EV_MSC;MSC_SCAN;458765
+
+|>>1737972175;657963;EV_KEY;KEY_J;up
+
+|>>1737972175;657964;EV_KEY;KEY_F;up
