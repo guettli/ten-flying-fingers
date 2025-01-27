@@ -443,9 +443,9 @@ func Test_manInTheMiddle_ComboWithMatch_NoPanic(t *testing.T) {
 		// The input is quite crazy. This tests ensures that no panic happens.
 		// Changes are allowed to alter the output.
 		`
-	F-down
+	Y-down
+    Y-up
 	K-down
-	F-up
 	J-down
 	K-up
 	F-down
