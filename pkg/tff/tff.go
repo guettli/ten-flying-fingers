@@ -477,7 +477,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 				return io.EOF
 			}
 			if state.fakeActiveTimer && state.fakeActiverTimerNextTime.Before(syscallTimevalToTime(evP.Time)) {
-				if err := state.AfterTimer(); err != nil {
+				if err := state.fakeAfterTimerFunc(state.fakeActiverTimerNextTime); err != nil {
 					return err
 				}
 				state.fakeActiverTimerNextTime = maxTime
@@ -656,8 +656,8 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 	// check if all down-keys are seen, and in the same order.
 	seenDown := make([]KeyCode, 0, len(combo.Keys))
 	seenUp := make([]KeyCode, 0, len(combo.Keys))
-	var lastDownTime *syscall.Timeval
-	var firstUpTime *syscall.Timeval
+	var lastDownEvent *evdev.InputEvent
+	var firstUpEvent *evdev.InputEvent
 	var unknownKey *KeyCode
 	for _, ev := range state.buf {
 		if !slices.Contains(combo.Keys, ev.Code) {
@@ -666,11 +666,11 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 		}
 		switch ev.Value {
 		case DOWN:
-			lastDownTime = &ev.Time
+			lastDownEvent = &ev
 			seenDown = append(seenDown, ev.Code)
 		case UP:
-			if firstUpTime == nil {
-				firstUpTime = &ev.Time
+			if firstUpEvent == nil {
+				firstUpEvent = &ev
 			}
 			seenUp = append(seenUp, ev.Code)
 		default:
@@ -699,14 +699,16 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 
 	// All down-keys are seen.
 
-	if firstUpTime != nil &&
-		syscallTimevalToTime(*lastDownTime).Before(syscallTimevalToTime(*firstUpTime)) {
-		overlapDuration := timeSub(*lastDownTime, *firstUpTime)
+	if firstUpEvent != nil &&
+		syscallTimevalToTime(lastDownEvent.Time).Before(syscallTimevalToTime(firstUpEvent.Time)) &&
+		lastDownEvent.Code != firstUpEvent.Code {
+
+		overlapDuration := timeSub(*&lastDownEvent.Time, firstUpEvent.Time)
 		if overlapDuration < 40*time.Millisecond {
 			return NoMatch, fmt.Sprintf("Overlap too short %s", overlapDuration), nil
 		}
 	}
-	age := timeSub(*lastDownTime, currTime)
+	age := timeSub(lastDownEvent.Time, currTime)
 	minAge := 140 * time.Millisecond
 	if age < minAge {
 		// All in-down-keys are seen. But wait some milliseconds before writing the out-down-keys.
@@ -726,9 +728,14 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 // If all down-keys got pressed (and held down, no up-keys were seen yet),
 // then we need to fire the down events after some time.
 func (state *State) AfterTimer() error {
+	panic("AfterTimer not during testsssssssssssss")
 	timeval := syscall.Timeval{}
 	syscall.Gettimeofday(&timeval)
 	return state.Eval(timeval, "timer")
+}
+
+func (state *State) fakeAfterTimerFunc(time time.Time) error {
+	return state.Eval(timeToSyscallTimeval(time), "timer")
 }
 
 func (state *State) WriteComboDownKeysNew(combo *Combo) error {
