@@ -740,7 +740,6 @@ func tooYoung(state *State, lastDownEvent *evdev.InputEvent, currTime syscall.Ti
 // If all down-keys got pressed (and held down, no up-keys were seen yet),
 // then we need to fire the down events after some time.
 func (state *State) AfterTimer() error {
-	panic("AfterTimer not during testsssssssssssss")
 	timeval := syscall.Timeval{}
 	syscall.Gettimeofday(&timeval)
 	return state.Eval(timeval, "timer")
