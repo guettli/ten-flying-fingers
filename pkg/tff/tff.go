@@ -708,12 +708,10 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 			return NoMatch, fmt.Sprintf("Overlap too short %s", overlapDuration), nil
 		}
 	}
-	age := timeSub(lastDownEvent.Time, currTime)
-	minAge := 140 * time.Millisecond
-	if age < minAge {
+	isTooYoung := tooYoung(state, lastDownEvent, currTime)
+	if isTooYoung != "" {
 		// All in-down-keys are seen. But wait some milliseconds before writing the out-down-keys.
-		return ComboNotFinished,
-			fmt.Sprintf("All down seen, but too young (lastDown..currTime minAge %s): %s", minAge.String(), age.String()), nil
+		return ComboNotFinished, isTooYoung, nil
 	}
 	if len(seenUp) > 0 {
 		return WriteUpKeys, fmt.Sprintf("WriteUpKeys. Finished %s", SliceOfKeysToString(seenUp)), nil
@@ -722,6 +720,20 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 		return AllDownKeysSeenAndAlreadyWritten, "", nil
 	}
 	return AllDownKeysSeen, "All down seen. Write the out-down-keys", nil
+}
+
+func tooYoung(state *State, lastDownEvent *evdev.InputEvent, currTime syscall.Timeval) string {
+	if len(state.buf) > 1 {
+		if state.buf[len(state.buf)-2].Code == lastDownEvent.Code {
+			return ""
+		}
+	}
+	age := timeSub(lastDownEvent.Time, currTime)
+	minAge := 140 * time.Millisecond
+	if age < minAge {
+		return fmt.Sprintf("All down seen, but too young (lastDown..currTime minAge %s): %s", minAge.String(), age.String())
+	}
+	return ""
 }
 
 // AfterTimer gets called N milliseconds after the last key-down-event.
