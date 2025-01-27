@@ -552,8 +552,8 @@ type State struct {
 	fakeActiverTimerNextTime time.Time        // The next the fakeActiveTimer event will be fired.
 }
 
-func (state *State) Eval(time syscall.Timeval) error {
-	fmt.Printf("Eval %s\n", state.String())
+func (state *State) Eval(time syscall.Timeval, reason string) error {
+	fmt.Printf("Eval [%s] %s\n", reason, state.String())
 	if len(state.buf) == 2 &&
 		state.buf[0].Code == state.buf[1].Code &&
 		state.buf[0].Value == DOWN && state.buf[1].Value == UP {
@@ -699,7 +699,8 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 
 	// All down-keys are seen.
 
-	if firstUpTime != nil {
+	if firstUpTime != nil &&
+		syscallTimevalToTime(*lastDownTime).Before(syscallTimevalToTime(*firstUpTime)) {
 		overlapDuration := timeSub(*lastDownTime, *firstUpTime)
 		if overlapDuration < 40*time.Millisecond {
 			return NoMatch, fmt.Sprintf("Overlap too short %s", overlapDuration), nil
@@ -727,7 +728,7 @@ func (state *State) EvalCombo(combo *Combo, currTime syscall.Timeval) (evalResul
 func (state *State) AfterTimer() error {
 	timeval := syscall.Timeval{}
 	syscall.Gettimeofday(&timeval)
-	return state.Eval(timeval)
+	return state.Eval(timeval, "timer")
 }
 
 func (state *State) WriteComboDownKeysNew(combo *Combo) error {
@@ -855,7 +856,7 @@ func (state *State) HandleUpChar(
 	ev Event,
 ) error {
 	state.buf = append(state.buf, ev)
-	return state.Eval(ev.Time)
+	return state.Eval(ev.Time, "up")
 }
 
 func (state *State) HandleDownChar(
@@ -870,7 +871,7 @@ func (state *State) HandleDownChar(
 	}
 
 	state.buf = append(state.buf, ev)
-	return state.Eval(ev.Time)
+	return state.Eval(ev.Time, "down")
 }
 
 func csv(sourceDev *evdev.InputDevice) error {
@@ -901,8 +902,9 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 	if err != nil {
 		return err
 	}
+	timeoutSeconds := 5 * time.Second
 	fmt.Printf("Grabbing %s\n", targetName)
-	fmt.Printf("Hold `x` for 1 second to exit.\n")
+	fmt.Printf("Do not type for %s to terminate.\n", timeoutSeconds)
 	prevEvent := Event{
 		Time:  timeToSyscallTimeval(time.Now()),
 		Type:  evdev.EV_KEY,
@@ -922,7 +924,7 @@ func printEvents(sourceDevice *evdev.InputDevice) error {
 		if timedOut {
 			fmt.Println()
 			duration := time.Since(syscallTimevalToTime(prevEvent.Time))
-			if duration > time.Duration(10*time.Second) {
+			if duration > timeoutSeconds {
 				fmt.Println("timeout")
 				break
 			}
@@ -1107,6 +1109,7 @@ func (c *ComboLogEventReader) ReadOne() (*Event, error) {
 		if err != nil {
 			return nil, fmt.Errorf("csvlineToEvent failed: %w", err)
 		}
+		// fmt.Printf("<<| %s\n", eventToString(&ev))
 		return &ev, nil
 	}
 }

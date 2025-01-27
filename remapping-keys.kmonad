@@ -1,4 +1,4 @@
-;; Remapping of CapsLock to get a new layer 
+;; Remapping of CapsLock to get a new layer
 ;; https://github.com/kmonad/kmonad
 
 
@@ -9,7 +9,7 @@
 )
 (defsrc
          esc caps bks
-         z       u       i       o  
+         z       u       i       o
     f g  h       j       k       l   ;
          n       m       ,       .
 )
@@ -26,7 +26,7 @@
 
 (deflayer capslocklayer
     _ _ _
-                     KeyUp     KeyUp        KeyPageUp    KeyPageUp            
+                     KeyUp     KeyUp        KeyPageUp    KeyPageUp
     KeyDelete KeyEsc KeyHome   KeyBackspace KeyLeft      KeyRight    KeyEnd
-                     KeyDown   KeyDown      KeyPageDown  _       
+                     KeyDown   KeyDown      KeyPageDown  _
 )
