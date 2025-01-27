@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"syscall"
@@ -554,7 +555,7 @@ func Test_ShouldNotPanic(t *testing.T) {
 |>>1737965477;104606;EV_SYN;SYN_REPORT;up
 |>>1737965477;488608;EV_MSC;MSC_SCAN;458769
 |>>1737965477;488608;EV_KEY;KEY_N;down`
-	scanner := bufio.NewScanner(strings.NewReader(log))
+	scanner := bufio.NewScanner(strings.NewReader(string(log)))
 	logReader := ComboLogEventReader{scanner: scanner}
 	combos, err := LoadYamlFromBytes([]byte(`
 combos:
@@ -562,6 +563,45 @@ combos:
     outKeys: down`))
 	require.NoError(t, err)
 	ew := &writeToSlice{}
-	err = manInTheMiddle(&logReader, ew, combos, true, false)
+	err = manInTheMiddle(&logReader, ew, combos, true, true)
 	require.True(t, errors.Is(err, io.EOF))
+}
+
+func Test_FJX_emits_f_but_should_not(t *testing.T) {
+	log, err := os.ReadFile("testdata/fjx-emits-f-but-should-not.log")
+	require.NoError(t, err)
+	scanner := bufio.NewScanner(strings.NewReader(string(log)))
+	logReader := ComboLogEventReader{scanner: scanner}
+	combos, err := LoadYamlFromBytes([]byte(`
+combos:
+  - keys: f j
+    outKeys: x`))
+	require.NoError(t, err)
+	ew := &writeToSlice{}
+	err = manInTheMiddle(&logReader, ew, combos, true, true)
+	require.True(t, errors.Is(err, io.EOF))
+	ew.requireEqual(t, `
+        	        	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+       	            	X-down
+       	            	X-up
+						X-down
+        	            X-up
+        	            X-down
+        	            X-up
+						`)
 }
