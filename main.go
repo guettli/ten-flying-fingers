@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/guettli/ten-flying-fingers/pkg/tff"
+	"github.com/guettli/tff/pkg/tff"
 )
 
 func main() {

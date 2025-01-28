@@ -7,8 +7,16 @@ I want to keep my index fingers on "F" and "J" as much as possible (a.k.a. the "
 
 ## Usage
 
+You can run it directly from Github:
+
+```sh
+go run github.com/guettli/tff@latest
 ```
-go run github.com/guettli/ten-flying-fingers@latest
+
+You can install it:
+
+```sh
+go install github.com/guettli/tff@latest
 ```
 
 ## Keys That Are Hard to Access

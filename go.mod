@@ -1,4 +1,4 @@
-module github.com/guettli/ten-flying-fingers
+module github.com/guettli/tff
 
 go 1.23
 

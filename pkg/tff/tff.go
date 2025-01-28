@@ -91,25 +91,25 @@ func listDevices() string {
 func usage() {
 	fmt.Printf(`Create a new input device from an existing one
 Usage:
-  %s print [ /dev/input/... ]
+  tff print [ /dev/input/... ]
 
       print events.
 	  If no device was given, then the programm listens to all device and asks for a key press.
 
-  %s csv [ /dev/input/... ]
+  tff csv [ /dev/input/... ]
 
      Write the events in CSV format.
 	 If no device was given, then the programm listens to all device and asks for a key press.
 
-  %s create-events-from-csv myfile.csv
+  tff create-events-from-csv myfile.csv
 
      Create events from a csv file.
 
-  %s combos [--debug] combos.yaml [ /dev/input/... ]
+  tff combos [--debug] combos.yaml [ /dev/input/... ]
 
      Run combos defined in combos.yaml
 
-  %s replay-combo-log combos.yaml combo.log
+  tff replay-combo-log combos.yaml combo.log
 
      Replay a combo log. If you got a panic while using the combos sub-command,
 	 you can update the Go code and replay the log to see if the bug was fixed.
@@ -117,7 +117,7 @@ Usage:
 
   Devices which look like a keyboard:
 %s
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], listDevices())
+`, listDevices())
 }
 
 func findDev() (string, error) {
