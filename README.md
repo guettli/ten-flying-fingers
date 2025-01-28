@@ -7,16 +7,111 @@ I want to keep my index fingers on "F" and "J" as much as possible (a.k.a. the "
 
 ## Usage
 
-You can run it directly from Github:
-
-```sh
-go run github.com/guettli/tff@latest
-```
-
-You can install it:
+You can install `tff` via `go install`:
 
 ```sh
 go install github.com/guettli/tff@latest
+```
+
+Use `sudo` because reading and writing from the Linux evdev needs root:
+
+```sh
+sudo $(go env GOPATH)/bin/tff -h
+```
+
+```text
+Create a new input device from an existing one
+Usage:
+  tff print [ /dev/input/... ]
+
+      print events.
+      If no device was given, then the programm listens to all device and asks for a key press.
+
+  tff csv [ /dev/input/... ]
+
+     Write the events in CSV format.
+     If no device was given, then the programm listens to all device and asks for a key press.
+
+  tff create-events-from-csv myfile.csv
+
+     Create events from a csv file.
+
+  tff combos [--debug] combos.yaml [ /dev/input/... ]
+
+     Run combos defined in combos.yaml
+
+  tff replay-combo-log combos.yaml combo.log
+
+     Replay a combo log. If you got a panic while using the combos sub-command,
+     you can update the Go code and replay the log to see if the bug was fixed.
+     You must run the 'combos' sub-command with the --debug flag to create the log.
+
+  Devices which look like a keyboard:
+/dev/input/event3 AT Translated Set 2 keyboard [EV_SYN EV_KEY EV_MSC EV_LED EV_REP] []
+/dev/input/event7 Lenovo ThinkPad Compact USB Keyboard with TrackPoint [EV_SYN EV_KEY EV_MSC EV_LED EV_REP] []
+```
+
+## combos.yaml
+
+This combos.yaml file will print `1` if you overlap `F J` and `2` if you overlap `J F`:
+
+```yaml
+combos:
+  - keys: f j
+    outKeys: 1
+  - keys: j f
+    outKeys: 2
+```
+
+The `combos` sub-command does the magic. It listens to the chosen device and translates events:
+
+```sh
+sudo $(go env GOPATH)/bin/tff combos combos.yaml
+```
+
+After starting above command move the input to an other window and see if you can produce `1` by
+overlapping `J F`. Overlapping `F J` emits `2`.
+
+Attention: The characters which are printed on your keyboard are very likely different from the
+characters which are received from the Linux evdev. For example on QWERTZ a `Z` is a `Y`and a `ö` is
+a `semicolon`.
+
+Use `tff print` to see which characters our keys emit.
+
+## Sub-commands
+
+```text
+❯ sudo ~/go/bin/tff -h
+
+Create a new input device from an existing one
+Usage:
+  tff print [ /dev/input/... ]
+
+      print events.
+      If no device was given, then the programm listens to all device and asks for a key press.
+
+  tff csv [ /dev/input/... ]
+
+     Write the events in CSV format.
+     If no device was given, then the programm listens to all device and asks for a key press.
+
+  tff create-events-from-csv myfile.csv
+
+     Create events from a csv file.
+
+  tff combos [--debug] combos.yaml [ /dev/input/... ]
+
+     Run combos defined in combos.yaml
+
+  tff replay-combo-log combos.yaml combo.log
+
+     Replay a combo log. If you got a panic while using the combos sub-command,
+     you can update the Go code and replay the log to see if the bug was fixed.
+     You must run the 'combos' sub-command with the --debug flag to create the log.
+
+  Devices which look like a keyboard:
+/dev/input/event3 AT Translated Set 2 keyboard [EV_SYN EV_KEY EV_MSC EV_LED EV_REP] []
+/dev/input/event7 Lenovo ThinkPad Compact USB Keyboard with TrackPoint [EV_SYN EV_KEY EV_MSC EV_LED EV_REP] []
 ```
 
 ## Keys That Are Hard to Access
@@ -69,8 +164,8 @@ receiving and sending events on Linux.
 
 While typing fluently, you may have some overlap between key presses. This tool differentiates
 between hitting `F` and then `J` with an overlap time of 40ms. If both keys are pressed
-simultaneously and for longer, it is treated as one combination. Otherwise, it is
-interpreted as two separate keys.
+simultaneously and for longer, it is treated as one combination. Otherwise, it is interpreted as two
+separate keys.
 
 You do not need to write in a staccato style.
 
