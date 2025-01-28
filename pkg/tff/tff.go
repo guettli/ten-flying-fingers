@@ -1,3 +1,4 @@
+// Package tff (ten flying fingers) implements a tool to read and write events from/to an input device.
 package tff
 
 import (
