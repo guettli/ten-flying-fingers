@@ -76,7 +76,7 @@ Attention: The characters which are printed on your keyboard are very likely dif
 characters which are received from the Linux evdev. For example on QWERTZ a `Z` is a `Y`and a `ö` is
 a `semicolon`.
 
-Use `tff print` to see which characters our keys emit.
+Use `tff print` to see which characters your keys emit.
 
 ## Sub-commands
 
