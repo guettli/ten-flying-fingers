@@ -3,6 +3,7 @@ package tff
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -254,41 +255,10 @@ func MyMain() error {
 		}
 		return nil
 	case "combos":
-		var args []string
-		debug := false
-		for _, arg := range os.Args {
-			if arg == "--debug" || arg == "-d" {
-				debug = true
-				continue
-			}
-			args = append(args, arg)
-		}
-
-		if len(args) != 3 && len(args) != 4 {
-			fmt.Println("Not enough arguments")
-			os.Exit(1)
-		}
-		sourceDev, err := getDevicePathFromArgsSlice(args[3:])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		err = combos(args[2], sourceDev, debug)
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
+		panic("moved")
 		return nil
 	case "replay-combo-log":
-		if len(os.Args) != 4 {
-			fmt.Println("Not enough arguments")
-			os.Exit(1)
-		}
-		err := replayComboLog(os.Args[2], os.Args[3])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
+
 		return nil
 	default:
 		usage()
@@ -430,7 +400,7 @@ type EventWriter interface {
 	WriteOne(event *Event) error
 }
 
-func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bool, fakeActiveTimer bool) error {
+func manInTheMiddle(ctx context.Context, er EventReader, ew EventWriter, allCombos []*Combo, debug bool, fakeActiveTimer bool) error {
 	maxLength := 0
 	for i := range allCombos {
 		l := len(allCombos[i].Keys)
@@ -1133,7 +1103,7 @@ func (c *ComboLogEventReader) ReadOne() (*Event, error) {
 	}
 }
 
-func replayComboLog(comboYamlFile string, logFile string) error {
+func replayComboLog(ctx context.Context, comboYamlFile string, logFile string) error {
 	outDev, err := evdev.CreateDevice("replay", evdev.InputID{
 		BusType: 0x03,
 		Vendor:  0x4711,
@@ -1157,24 +1127,11 @@ func replayComboLog(comboYamlFile string, logFile string) error {
 	scanner := bufio.NewScanner(file)
 	logReader := ComboLogEventReader{scanner: scanner}
 
-	return manInTheMiddle(&logReader, outDev, combos, true, false)
+	return manInTheMiddle(ctx, &logReader, outDev, combos, true, false)
 }
 
-func combos(yamlFile string, dev *evdev.InputDevice, debug bool) error {
-	combos, err := LoadYamlFile(yamlFile)
-	if err != nil {
-		return err
-	}
-	err = dev.Grab()
-	if err != nil {
-		return err
-	}
-	outDev, err := evdev.CloneDevice("clone", dev)
-	if err != nil {
-		return err
-	}
-	defer outDev.Close()
-	return manInTheMiddle(dev, outDev, combos, debug, false)
+func handleOneDevice(ctx context.Context, combos []*Combo, er EventReader, ew EventWriter, debug bool, errorChannel chan error) {
+	errorChannel <- manInTheMiddle(ctx, er, ew, combos, debug, false)
 }
 
 func removeFromSlice[T comparable](s []T, elem T) []T {

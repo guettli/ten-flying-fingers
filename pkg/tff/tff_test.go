@@ -2,6 +2,7 @@ package tff
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -75,7 +76,7 @@ func _assertInputOutput(t *testing.T, input string, expectedOutput string, allCo
 	ew := writeToSlice{}
 	er, err := stringToEventsFunc(input)
 	require.Nil(t, err)
-	err = manInTheMiddle(er, &ew, allCombos, true, true)
+	err = manInTheMiddle(context.Background(), er, &ew, allCombos, true, true)
 	require.ErrorIs(t, err, io.EOF)
 	ew.requireEqual(t, expectedOutput)
 }
@@ -204,7 +205,7 @@ func Test_manInTheMiddle_noMatch(t *testing.T) {
 		ew := writeToSlice{}
 		er, err := NewReadFromSliceInputCSV(asdfTestEvents)
 		require.Nil(t, err)
-		err = manInTheMiddle(er, &ew, allCombos, false, true)
+		err = manInTheMiddle(context.Background(), er, &ew, allCombos, false, true)
 		require.ErrorIs(t, err, io.EOF)
 		csv := eventsToCsv(ew.s)
 		require.Equal(t, asdfTestEvents, csv)
@@ -563,7 +564,7 @@ combos:
     outKeys: down`))
 	require.NoError(t, err)
 	ew := &writeToSlice{}
-	err = manInTheMiddle(&logReader, ew, combos, true, true)
+	err = manInTheMiddle(context.Background(), &logReader, ew, combos, true, true)
 	require.True(t, errors.Is(err, io.EOF))
 }
 
@@ -578,7 +579,7 @@ combos:
     outKeys: x`))
 	require.NoError(t, err)
 	ew := &writeToSlice{}
-	err = manInTheMiddle(&logReader, ew, combos, true, true)
+	err = manInTheMiddle(context.Background(), &logReader, ew, combos, true, true)
 	require.True(t, errors.Is(err, io.EOF))
 	ew.requireEqual(t, `
         	        	X-down
