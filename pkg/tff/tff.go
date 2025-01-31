@@ -190,20 +190,14 @@ func readEvents(dev *evdev.InputDevice, path string, c chan eventOfPath) {
 	}
 }
 
-func getDevicePathFromArgsSlice(args []string) (*evdev.InputDevice, error) {
-	if len(args) > 1 {
-		return nil, fmt.Errorf("too many arguments")
-	}
-	path := ""
-	if len(args) == 0 {
-		p, err := findDev()
+func getDeviceFromPath(path string) (*evdev.InputDevice, error) {
+	if path == "" {
+		var err error
+		path, err = findDev()
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Using device %q\n", p)
-		path = p
-	} else {
-		path = args[0]
+		fmt.Printf("Using device %q\n", path)
 	}
 	sourceDev, err := evdev.Open(path)
 	if err != nil {
@@ -213,28 +207,10 @@ func getDevicePathFromArgsSlice(args []string) (*evdev.InputDevice, error) {
 }
 
 func MyMain() error {
-	defer os.Stdout.Close()
-	if len(os.Args) < 2 {
-		usage()
-		return nil
-	}
-
-	cmd := os.Args[1]
-
+	cmd := ""
 	switch cmd {
-	case "print":
-		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		err = printEvents(sourceDev)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		return nil
 	case "csv":
-		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
+		sourceDev, err := getDeviceFromPath("")
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
