@@ -14,10 +14,6 @@ type CombosCmdConfig struct {
 	Logfile     string
 }
 
-func ReplayComboLogMain(ctx context.Context, cmdconfig CombosCmdConfig) error {
-	return replayComboLog(ctx, cmdconfig.ConfigFile, cmdconfig.Logfile)
-}
-
 func CombosMain(ctx context.Context, cmdconfig CombosCmdConfig) error {
 	if len(cmdconfig.DevicePaths) == 0 {
 		p, err := findDev()
@@ -56,12 +52,10 @@ func CombosMain(ctx context.Context, cmdconfig CombosCmdConfig) error {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	errorChannel := make(chan error)
 	for i := 0; i < len(cmdconfig.DevicePaths); i++ {
-		go handleOneDevice(ctx, combos, sourceDevs[i], outDevs[i], cmdconfig.Debug, errorChannel)
+		go handleOneDevice(ctx, combos, sourceDevs[i], outDevs[i], errorChannel)
 	}
 	err = <-errorChannel
-	if err != nil {
-		cancel(err)
-	}
+	cancel(err)
 	for i := 0; i < len(cmdconfig.DevicePaths)-1; i++ {
 		err := <-errorChannel
 		fmt.Println(err)

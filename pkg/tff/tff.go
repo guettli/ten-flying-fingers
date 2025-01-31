@@ -150,7 +150,7 @@ func findDev() (string, error) {
 		go readEvents(dev, path, c)
 	}
 	if foundDevices == 0 {
-		return "", fmt.Errorf("No device found (try `sudo`, since root permissions are needed)")
+		return "", fmt.Errorf("No device found. Please try using `sudo`, as root permissions are needed.")
 	}
 	fmt.Println("Please use the device you want to use, now. Capturing events ....")
 	found := ""
@@ -255,13 +255,10 @@ func MyMain() error {
 		}
 		return nil
 	case "combos":
-		panic("moved")
 		return nil
 	case "replay-combo-log":
-
 		return nil
 	default:
-		usage()
 		return nil
 	}
 }
@@ -400,7 +397,13 @@ type EventWriter interface {
 	WriteOne(event *Event) error
 }
 
-func manInTheMiddle(ctx context.Context, er EventReader, ew EventWriter, allCombos []*Combo, debug bool, fakeActiveTimer bool) error {
+func manInTheMiddle(ctx context.Context, er EventReader, ew EventWriter, allCombos []*Combo, fakeActiveTimer bool) (reterr error) {
+	defer func() {
+		if errors.Is(reterr, io.EOF) {
+			reterr = nil
+		}
+	}()
+
 	maxLength := 0
 	for i := range allCombos {
 		l := len(allCombos[i].Keys)
@@ -429,6 +432,8 @@ func manInTheMiddle(ctx context.Context, er EventReader, ew EventWriter, allComb
 	}()
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case eventErr, ok := <-eventChannel:
 			if !ok {
 				panic("I don't expect this channel to get closed.")
@@ -454,9 +459,7 @@ func manInTheMiddle(ctx context.Context, er EventReader, ew EventWriter, allComb
 				state.fakeActiverTimerNextTime = maxTime
 			}
 
-			if debug {
-				fmt.Printf("\n|>>%s", eventToCsvLine(*evP))
-			}
+			fmt.Printf("\n|>>%s", eventToCsvLine(*evP))
 
 			err = manInTheMiddleInnerLoop(evP, ew, state)
 			if err != nil {
@@ -1103,35 +1106,8 @@ func (c *ComboLogEventReader) ReadOne() (*Event, error) {
 	}
 }
 
-func replayComboLog(ctx context.Context, comboYamlFile string, logFile string) error {
-	outDev, err := evdev.CreateDevice("replay", evdev.InputID{
-		BusType: 0x03,
-		Vendor:  0x4711,
-		Product: 0x0816,
-		Version: 1,
-	}, nil)
-	if err != nil {
-		return err
-	}
-	defer outDev.Close()
-	combos, err := LoadYamlFile(comboYamlFile)
-	if err != nil {
-		return fmt.Errorf("failed to load %q: %w", comboYamlFile, err)
-	}
-	file, err := os.Open(logFile)
-	if err != nil {
-		return fmt.Errorf("failed to open %q: %w", logFile, err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	logReader := ComboLogEventReader{scanner: scanner}
-
-	return manInTheMiddle(ctx, &logReader, outDev, combos, true, false)
-}
-
-func handleOneDevice(ctx context.Context, combos []*Combo, er EventReader, ew EventWriter, debug bool, errorChannel chan error) {
-	errorChannel <- manInTheMiddle(ctx, er, ew, combos, debug, false)
+func handleOneDevice(ctx context.Context, combos []*Combo, er EventReader, ew EventWriter, errorChannel chan error) {
+	errorChannel <- manInTheMiddle(ctx, er, ew, combos, false)
 }
 
 func removeFromSlice[T comparable](s []T, elem T) []T {
