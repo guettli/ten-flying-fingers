@@ -24,6 +24,11 @@ const (
 	REPEAT = 2
 )
 
+const (
+	pleaseUseDeviceMessage = "Please use the device you want to use, now. Capturing events ...."
+	usingDeviceMessage     = "Using device"
+)
+
 type Event = evdev.InputEvent
 
 type KeyCode = evdev.EvCode // for exmaple KEY_A, KEY_B, ...
@@ -152,7 +157,7 @@ func findDev() (string, error) {
 	if foundDevices == 0 {
 		return "", fmt.Errorf("No device found. Please try using `sudo`, as root permissions are needed.")
 	}
-	fmt.Println("Please use the device you want to use, now. Capturing events ....")
+	fmt.Println(pleaseUseDeviceMessage)
 	found := ""
 	for {
 		evOfPath := <-c
@@ -190,14 +195,14 @@ func readEvents(dev *evdev.InputDevice, path string, c chan eventOfPath) {
 	}
 }
 
-func getDeviceFromPath(path string) (*evdev.InputDevice, error) {
+func GetDeviceFromPath(path string) (*evdev.InputDevice, error) {
 	if path == "" {
 		var err error
 		path, err = findDev()
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Using device %q\n", path)
+		fmt.Printf("%s %q\n", usingDeviceMessage, path)
 	}
 	sourceDev, err := evdev.Open(path)
 	if err != nil {
@@ -210,26 +215,9 @@ func MyMain() error {
 	cmd := ""
 	switch cmd {
 	case "csv":
-		sourceDev, err := getDeviceFromPath("")
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		err = csv(sourceDev)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		return nil
+
 	case "create-events-from-csv":
-		if len(os.Args) != 3 {
-			usage()
-			return nil
-		}
-		err := createEventsFromCsv(os.Args[2])
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		return nil
+
 	case "combos":
 		return nil
 	case "replay-combo-log":
@@ -237,9 +225,10 @@ func MyMain() error {
 	default:
 		return nil
 	}
+	return nil
 }
 
-func createEventsFromCsv(csvPath string) error {
+func CreateEventsFromCsv(csvPath string) error {
 	file, err := os.Open(csvPath)
 	if err != nil {
 		return fmt.Errorf("failed to open %q: %w", csvPath, err)
@@ -251,6 +240,10 @@ func createEventsFromCsv(csvPath string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, pleaseUseDeviceMessage) ||
+			strings.HasPrefix(line, usingDeviceMessage) {
 			continue
 		}
 		ev, err := csvlineToEvent(line)
@@ -842,7 +835,7 @@ func (state *State) HandleDownChar(
 	return state.Eval(ev.Time, "down")
 }
 
-func csv(sourceDev *evdev.InputDevice) error {
+func Csv(sourceDev *evdev.InputDevice) error {
 	defer sourceDev.Close()
 	targetName, err := sourceDev.Name()
 	if err != nil {
