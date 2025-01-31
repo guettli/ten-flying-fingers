@@ -3,6 +3,7 @@ package tff
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,11 @@ const (
 	UP     = 0
 	DOWN   = 1
 	REPEAT = 2
+)
+
+const (
+	pleaseUseDeviceMessage = "Please use the device you want to use, now. Capturing events ...."
+	usingDeviceMessage     = "Using device"
 )
 
 type Event = evdev.InputEvent
@@ -149,9 +155,9 @@ func findDev() (string, error) {
 		go readEvents(dev, path, c)
 	}
 	if foundDevices == 0 {
-		return "", fmt.Errorf("No device found (try `sudo`, since root permissions are needed)")
+		return "", fmt.Errorf("No device found. Please try using `sudo`, as root permissions are needed.")
 	}
-	fmt.Println("Please use the device you want to use, now. Capturing events ....")
+	fmt.Println(pleaseUseDeviceMessage)
 	found := ""
 	for {
 		evOfPath := <-c
@@ -189,20 +195,14 @@ func readEvents(dev *evdev.InputDevice, path string, c chan eventOfPath) {
 	}
 }
 
-func getDevicePathFromArgsSlice(args []string) (*evdev.InputDevice, error) {
-	if len(args) > 1 {
-		return nil, fmt.Errorf("too many arguments")
-	}
-	path := ""
-	if len(args) == 0 {
-		p, err := findDev()
+func GetDeviceFromPath(path string) (*evdev.InputDevice, error) {
+	if path == "" {
+		var err error
+		path, err = findDev()
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Using device %q\n", p)
-		path = p
-	} else {
-		path = args[0]
+		fmt.Printf("%s %q\n", usingDeviceMessage, path)
 	}
 	sourceDev, err := evdev.Open(path)
 	if err != nil {
@@ -211,92 +211,7 @@ func getDevicePathFromArgsSlice(args []string) (*evdev.InputDevice, error) {
 	return sourceDev, nil
 }
 
-func MyMain() error {
-	defer os.Stdout.Close()
-	if len(os.Args) < 2 {
-		usage()
-		return nil
-	}
-
-	cmd := os.Args[1]
-
-	switch cmd {
-	case "print":
-		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		err = printEvents(sourceDev)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		return nil
-	case "csv":
-		sourceDev, err := getDevicePathFromArgsSlice(os.Args[2:len(os.Args)])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		err = csv(sourceDev)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		return nil
-	case "create-events-from-csv":
-		if len(os.Args) != 3 {
-			usage()
-			return nil
-		}
-		err := createEventsFromCsv(os.Args[2])
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		return nil
-	case "combos":
-		var args []string
-		debug := false
-		for _, arg := range os.Args {
-			if arg == "--debug" || arg == "-d" {
-				debug = true
-				continue
-			}
-			args = append(args, arg)
-		}
-
-		if len(args) != 3 && len(args) != 4 {
-			fmt.Println("Not enough arguments")
-			os.Exit(1)
-		}
-		sourceDev, err := getDevicePathFromArgsSlice(args[3:])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		err = combos(args[2], sourceDev, debug)
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		return nil
-	case "replay-combo-log":
-		if len(os.Args) != 4 {
-			fmt.Println("Not enough arguments")
-			os.Exit(1)
-		}
-		err := replayComboLog(os.Args[2], os.Args[3])
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		return nil
-	default:
-		usage()
-		return nil
-	}
-}
-
-func createEventsFromCsv(csvPath string) error {
+func CreateEventsFromCsv(csvPath string) error {
 	file, err := os.Open(csvPath)
 	if err != nil {
 		return fmt.Errorf("failed to open %q: %w", csvPath, err)
@@ -308,6 +223,10 @@ func createEventsFromCsv(csvPath string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, pleaseUseDeviceMessage) ||
+			strings.HasPrefix(line, usingDeviceMessage) {
 			continue
 		}
 		ev, err := csvlineToEvent(line)
@@ -430,7 +349,13 @@ type EventWriter interface {
 	WriteOne(event *Event) error
 }
 
-func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bool, fakeActiveTimer bool) error {
+func manInTheMiddle(ctx context.Context, er EventReader, ew EventWriter, allCombos []*Combo, fakeActiveTimer bool) (reterr error) {
+	defer func() {
+		if errors.Is(reterr, io.EOF) {
+			reterr = nil
+		}
+	}()
+
 	maxLength := 0
 	for i := range allCombos {
 		l := len(allCombos[i].Keys)
@@ -459,6 +384,8 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 	}()
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case eventErr, ok := <-eventChannel:
 			if !ok {
 				panic("I don't expect this channel to get closed.")
@@ -484,9 +411,7 @@ func manInTheMiddle(er EventReader, ew EventWriter, allCombos []*Combo, debug bo
 				state.fakeActiverTimerNextTime = maxTime
 			}
 
-			if debug {
-				fmt.Printf("\n|>>%s", eventToCsvLine(*evP))
-			}
+			fmt.Printf("\n|>>%s", eventToCsvLine(*evP))
 
 			err = manInTheMiddleInnerLoop(evP, ew, state)
 			if err != nil {
@@ -893,7 +818,7 @@ func (state *State) HandleDownChar(
 	return state.Eval(ev.Time, "down")
 }
 
-func csv(sourceDev *evdev.InputDevice) error {
+func Csv(sourceDev *evdev.InputDevice) error {
 	defer sourceDev.Close()
 	targetName, err := sourceDev.Name()
 	if err != nil {
@@ -1133,48 +1058,8 @@ func (c *ComboLogEventReader) ReadOne() (*Event, error) {
 	}
 }
 
-func replayComboLog(comboYamlFile string, logFile string) error {
-	outDev, err := evdev.CreateDevice("replay", evdev.InputID{
-		BusType: 0x03,
-		Vendor:  0x4711,
-		Product: 0x0816,
-		Version: 1,
-	}, nil)
-	if err != nil {
-		return err
-	}
-	defer outDev.Close()
-	combos, err := LoadYamlFile(comboYamlFile)
-	if err != nil {
-		return fmt.Errorf("failed to load %q: %w", comboYamlFile, err)
-	}
-	file, err := os.Open(logFile)
-	if err != nil {
-		return fmt.Errorf("failed to open %q: %w", logFile, err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	logReader := ComboLogEventReader{scanner: scanner}
-
-	return manInTheMiddle(&logReader, outDev, combos, true, false)
-}
-
-func combos(yamlFile string, dev *evdev.InputDevice, debug bool) error {
-	combos, err := LoadYamlFile(yamlFile)
-	if err != nil {
-		return err
-	}
-	err = dev.Grab()
-	if err != nil {
-		return err
-	}
-	outDev, err := evdev.CloneDevice("clone", dev)
-	if err != nil {
-		return err
-	}
-	defer outDev.Close()
-	return manInTheMiddle(dev, outDev, combos, debug, false)
+func handleOneDevice(ctx context.Context, combos []*Combo, er EventReader, ew EventWriter, errorChannel chan error) {
+	errorChannel <- manInTheMiddle(ctx, er, ew, combos, false)
 }
 
 func removeFromSlice[T comparable](s []T, elem T) []T {
