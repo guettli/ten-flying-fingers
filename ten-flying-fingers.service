@@ -13,7 +13,7 @@ Description=Ten Flying Fingers
 [Service]
 Restart=always
 RestartSec=3
-ExecStart=/home/XXXXX/go/bin/tff combos /home/XXXXX/projects/tff/my-combos.yaml /dev/input/by-id/SOME_DEVICE
+ExecStart=/home/XXXXX/go/bin/tff combos /home/XXXXX/projects/tff/my-combos.yaml /dev/input/by-id/SOME_DEVICE /dev/input/by-id/SOME_OTHER_DEVICE
 Nice=-20
 
 [Install]

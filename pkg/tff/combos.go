@@ -20,7 +20,13 @@ func CombosMain(ctx context.Context, cmdconfig CombosCmdConfig) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Using device %q\n", p)
+
+		idPath, err := getDeviceAlias(p)
+		alias := "(no alias found for device)"
+		if err == nil {
+			alias = fmt.Sprintf("(%s)", idPath)
+		}
+		fmt.Printf("%s %s %q\n", usingDeviceMessage, alias, p)
 		cmdconfig.DevicePaths = []string{p}
 	}
 	combos, err := LoadYamlFile(cmdconfig.ConfigFile)

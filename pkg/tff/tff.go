@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -195,6 +196,48 @@ func readEvents(dev *evdev.InputDevice, path string, c chan eventOfPath) {
 	}
 }
 
+var noAliasFoundErr = fmt.Errorf("No alias found")
+
+// /dev/input/event6 --> /dev/input/by-id/usb-Lenovo_ThinkPad_Compact_USB_Keyboard_with_TrackPoint-event-kbd
+func getDeviceAlias(path string) (string, error) {
+	alias, err := getDeviceAliasFromBaseDir(path, "/dev/input/by-id")
+	if err == nil {
+		return alias, nil
+	}
+	if !errors.Is(err, noAliasFoundErr) {
+		return "", err
+	}
+	return getDeviceAliasFromBaseDir(path, "/dev/input/by-path")
+}
+
+func getDeviceAliasFromBaseDir(path string, baseDir string) (string, error) {
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return "", err
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink == 0 {
+			continue
+		}
+		idFileAbs := filepath.Join(baseDir, entry.Name())
+		target, err := os.Readlink(idFileAbs)
+		if err != nil {
+			return "", err
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(baseDir, target)
+		}
+		if target == path {
+			return idFileAbs, nil
+		}
+	}
+	return "", noAliasFoundErr
+}
+
 func GetDeviceFromPath(path string) (*evdev.InputDevice, error) {
 	if path == "" {
 		var err error
@@ -202,7 +245,12 @@ func GetDeviceFromPath(path string) (*evdev.InputDevice, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("%s %q\n", usingDeviceMessage, path)
+		idPath, err := getDeviceAlias(path)
+		alias := "(no alias found for device)"
+		if err == nil {
+			alias = fmt.Sprintf("(%s)", idPath)
+		}
+		fmt.Printf("%s %s %q\n", usingDeviceMessage, alias, path)
 	}
 	sourceDev, err := evdev.Open(path)
 	if err != nil {
