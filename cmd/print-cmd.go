@@ -8,7 +8,7 @@ import (
 func init() {
 	combosCmd := &cobra.Command{
 		Use:   "print [device]",
-		Short: "Conntect to one evdev device and print the events",
+		Short: "Conntect to one evdev device and print the events. Needs root permissions.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			device := ""
 			if len(args) > 0 {

@@ -11,7 +11,7 @@ func init() {
 	config := tff.CombosCmdConfig{}
 	combosCmd := &cobra.Command{
 		Use:   "combos [flags] combos.yaml [device1 [device2 ...]]",
-		Short: "Conntect to one or several evdev devices and modify the events according to your configuration",
+		Short: "Conntect to one or several evdev devices and modify the events according to your configuration. Needs root permissions.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.ConfigFile = args[0]
 			config.DevicePaths = args[1:]

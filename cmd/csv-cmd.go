@@ -11,7 +11,7 @@ import (
 func init() {
 	combosCmd := &cobra.Command{
 		Use:   "csv [device]",
-		Short: "Conntect to one evdev device and print the events in csv format.",
+		Short: "Conntect to one evdev device and print the events in csv format. Needs root permissions.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := ""
 			if len(args) > 0 {
