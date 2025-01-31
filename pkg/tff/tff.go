@@ -211,23 +211,6 @@ func GetDeviceFromPath(path string) (*evdev.InputDevice, error) {
 	return sourceDev, nil
 }
 
-func MyMain() error {
-	cmd := ""
-	switch cmd {
-	case "csv":
-
-	case "create-events-from-csv":
-
-	case "combos":
-		return nil
-	case "replay-combo-log":
-		return nil
-	default:
-		return nil
-	}
-	return nil
-}
-
 func CreateEventsFromCsv(csvPath string) error {
 	file, err := os.Open(csvPath)
 	if err != nil {
