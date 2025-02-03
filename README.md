@@ -114,7 +114,7 @@ Usage:
 /dev/input/event7 Lenovo ThinkPad Compact USB Keyboard with TrackPoint [EV_SYN EV_KEY EV_MSC EV_LED EV_REP] []
 ```
 
-## Keys That Are Hard to Accesshjjjjööjjjjjjkk
+## Keys That Are Hard to Access
 
 These keys are hard to access if you want to keep your index fingers on "F" and "J":
 

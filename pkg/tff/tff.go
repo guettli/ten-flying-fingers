@@ -788,9 +788,10 @@ func (state *State) WriteEvent(ev Event, reason string) error {
 	fmt.Printf("  write %s %s\n", eventToString(&ev), reason)
 	err := state.outDev.WriteOne(&ev)
 	return errors.Join(err, state.outDev.WriteOne(&Event{
-		Time: ev.Time,
-		Type: evdev.EV_SYN,
-		Code: evdev.SYN_REPORT,
+		Time:  ev.Time,
+		Type:  evdev.EV_SYN,
+		Code:  evdev.SYN_REPORT,
+		Value: ev.Value,
 	}))
 }
 
@@ -864,27 +865,6 @@ func (state *State) HandleDownChar(
 
 	state.buf = append(state.buf, ev)
 	return state.Eval(ev.Time, "down")
-}
-
-func Csv(sourceDev *evdev.InputDevice) error {
-	defer sourceDev.Close()
-	targetName, err := sourceDev.Name()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("#Reading %s %s\n", targetName, time.Now().String())
-	for {
-		ev, err := sourceDev.ReadOne()
-		if err != nil {
-			return err
-		}
-		if eventToSkip(ev) {
-			continue
-		}
-
-		line := eventToCsvLine(*ev)
-		fmt.Print(line)
-	}
 }
 
 func printEvents(sourceDevice *evdev.InputDevice) error {

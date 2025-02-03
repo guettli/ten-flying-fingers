@@ -3,3 +3,4 @@ go-evdev/
 /*.csv
 /*.log
 /*.yaml
+main
