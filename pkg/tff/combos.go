@@ -2,7 +2,9 @@ package tff
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/holoplot/go-evdev"
 )
@@ -12,6 +14,37 @@ type CombosCmdConfig struct {
 	DevicePaths []string
 	ConfigFile  string
 	Logfile     string
+}
+
+type device struct {
+	id int
+
+	path string
+
+	// sourceDev is the device we read from
+	sourceDev *evdev.InputDevice
+
+	// outDev is the device we write to. Created via CloneDevice
+	outDev *evdev.InputDevice
+}
+
+func (d *device) Open() error {
+	sourceDev, err := evdev.Open(d.path)
+	if err != nil {
+		return err
+	}
+
+	err = sourceDev.Grab()
+	if err != nil {
+		return err
+	}
+	outDev, err := evdev.CloneDevice(fmt.Sprintf("tff-clone-%d-%d", os.Getpid(), d.id), sourceDev)
+	if err != nil {
+		return errors.Join(sourceDev.Close(), err)
+	}
+	d.sourceDev = sourceDev
+	d.outDev = outDev
+	return nil
 }
 
 func CombosMain(ctx context.Context, cmdconfig CombosCmdConfig) error {
@@ -34,33 +67,33 @@ func CombosMain(ctx context.Context, cmdconfig CombosCmdConfig) error {
 		return err
 	}
 
-	sourceDevs := make([]*evdev.InputDevice, 0, len(cmdconfig.DevicePaths))
-	outDevs := make([]*evdev.InputDevice, 0, len(cmdconfig.DevicePaths))
+	devices := make([]*device, 0, len(cmdconfig.DevicePaths))
+	good := 0
+	openErrors := make([]error, 0, len(cmdconfig.DevicePaths))
 	for i, path := range cmdconfig.DevicePaths {
-		sourceDev, err := evdev.Open(path)
-		if err != nil {
-			return fmt.Errorf("failed to open the source device: %q %w", path, err)
+		dev := device{
+			id:   i,
+			path: path,
 		}
-
-		err = sourceDev.Grab()
+		devices = append(devices, &dev)
+		err := dev.Open()
 		if err != nil {
-			return err
+			openErrors = append(openErrors, err)
+			continue
 		}
-		outDev, err := evdev.CloneDevice(fmt.Sprintf("tff-clone-%d", i), sourceDev)
-		if err != nil {
-			return err
-		}
-		defer outDev.Close()
-		sourceDevs = append(sourceDevs, sourceDev)
-		outDevs = append(outDevs, outDev)
+		good++
 	}
 
+	if good == 0 {
+		return fmt.Errorf("no devices could be opened: %w", errors.Join(openErrors...))
+	}
 	ctx, cancel := context.WithCancelCause(context.Background())
 	errorChannel := make(chan error)
-	for i := 0; i < len(cmdconfig.DevicePaths); i++ {
-		go handleOneDevice(ctx, combos, sourceDevs[i], outDevs[i], errorChannel)
+	for i := 0; i < len(devices); i++ {
+		go handleOneDevice(ctx, combos, devices[i], errorChannel)
 	}
 	err = <-errorChannel
+	fmt.Printf("error, stopping now: %v\n", err)
 	cancel(err)
 	for i := 0; i < len(cmdconfig.DevicePaths)-1; i++ {
 		err := <-errorChannel

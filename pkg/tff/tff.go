@@ -1086,8 +1086,28 @@ func (c *ComboLogEventReader) ReadOne() (*Event, error) {
 	}
 }
 
-func handleOneDevice(ctx context.Context, combos []*Combo, er EventReader, ew EventWriter, errorChannel chan error) {
-	errorChannel <- manInTheMiddle(ctx, er, ew, combos, false)
+var sleepAfterOpenFailure = 5 * time.Second
+
+func handleOneDevice(ctx context.Context, combos []*Combo, dev *device, errorChannel chan error) {
+	for {
+		if dev.sourceDev == nil {
+			err := dev.Open()
+			if err != nil {
+				fmt.Printf("failed to open %q. Will wait %s. %s\n", dev.path, sleepAfterOpenFailure, err.Error())
+
+				// sleep, but check if the context is done.
+				select {
+				case <-ctx.Done():
+					errorChannel <- ctx.Err()
+					return
+				case <-time.After(sleepAfterOpenFailure):
+				}
+			}
+			continue
+		}
+		errorChannel <- manInTheMiddle(ctx, dev.sourceDev, dev.outDev, combos, false)
+		return
+	}
 }
 
 func removeFromSlice[T comparable](s []T, elem T) []T {
